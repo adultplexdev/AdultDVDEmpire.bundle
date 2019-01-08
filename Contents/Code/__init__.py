@@ -27,7 +27,7 @@ class ADEAgent(Agent.Movies):
 
     query = String.URLEncode(String.StripDiacritics(title.replace('-','')))
     # Finds div with class=item
-    for movie in HTML.ElementFromURL(ADE_SEARCH_MOVIES % query).xpath('//div[contains(@class, "col-xs-7")]/h3/a[1]'): 
+    for movie in HTML.ElementFromURL(ADE_SEARCH_MOVIES % query).xpath('//div[contains(@class, "col-xs-6")]//div[@class="item-title"]/a[1]'):
       # curName = The text in the 'title' p
       curName = movie.text_content().strip()
       if curName.count(', The'):
