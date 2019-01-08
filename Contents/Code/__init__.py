@@ -174,7 +174,7 @@ class ADEAgent(Agent.Movies):
         for gname in htmlgenres:
           if len(gname) > 0:
             metadata.genres.add(gname)
-	      if gname != "Sale": metadata.genres.add(gname)
+              if gname != "Sale": metadata.genres.add(gname)
     except Exception, e:
       Log('Got an exception while parsing genres %s' %str(e))
 
