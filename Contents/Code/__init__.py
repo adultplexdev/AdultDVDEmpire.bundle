@@ -1,6 +1,6 @@
-# AdultDVDEmpire - nag
+# AdultDVDEmpire
 # Update: 8 January 2019
-# Description: Updated for the changes to the new site.
+# Description: New updates from a lot of diffrent forks and people. Please read README.md for more details.
 
 # URLS
 ADE_BASEURL = 'http://www.adultdvdempire.com'
@@ -147,6 +147,17 @@ class ADEAgent(Agent.Movies):
     except Exception, e:
       Log('Got an exception while parsing director %s' %str(e))
 
+    # Collections and Series
+    try:
+      metadata.collections.clear()
+      if html.xpath('//a[contains(@label, "Series")]'):
+        series = HTML.StringFromElement(html.xpath('//a[contains(@label, "Series")]')[0])
+        series = HTML.ElementFromString(series).text_content().strip()
+        series = series.split('"')
+        series = series[1]
+        metadata.collections.add(series)
+    except: pass
+
     # Genres
     try:
       metadata.genres.clear()
@@ -163,6 +174,7 @@ class ADEAgent(Agent.Movies):
         for gname in htmlgenres:
           if len(gname) > 0:
             metadata.genres.add(gname)
+	      if gname != "Sale": metadata.genres.add(gname)
     except Exception, e:
       Log('Got an exception while parsing genres %s' %str(e))
 
