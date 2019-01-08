@@ -4,7 +4,7 @@
 
 # URLS
 ADE_BASEURL = 'http://www.adultdvdempire.com'
-ADE_SEARCH_MOVIES = ADE_BASEURL + '/dvd/search?q=%s'
+ADE_SEARCH_MOVIES = ADE_BASEURL + '/allsearch/search?q=%s'
 ADE_MOVIE_INFO = ADE_BASEURL + '/%s/'
 
 INITIAL_SCORE = 100
