@@ -108,21 +108,21 @@ class ADEAgent(Agent.Movies):
         metadata.year = metadata.originally_available_at.year
       except: pass
 
-    # Cast
+    # Cast - added updated by Briadin / 20190108
     try:
       metadata.roles.clear()
       if html.xpath('//*[contains(@class, "cast listgrid item-cast-list")]'):
         htmlcast = HTML.StringFromElement(html.xpath('//*[contains(@class, "cast listgrid item-cast-list")]')[0])
-		
+
 		# -- Terrible setup but works for now.
         htmlcast = htmlcast.replace('\n', '|').replace('\r', '').replace('\t', '').replace(');">', 'DIVIDER')
         htmlcast = htmlcast.replace('<span>', '').replace('</span>', '')
         htmlcast = htmlcast.replace('<li>', '').replace('</li>', '')
         htmlcast = htmlcast.replace('<small>Director</small>', '')
-		
+
 		# Change to high res img -- This part need to be made better.
         htmlcast = htmlcast.replace('t.jpg', 'h.jpg')
-        htmlcast = htmlcast.replace('<img src="https://imgs2cdn.adultempire.com/res/pm/pixel.gif" alt="" title="" class="img-responsive headshot" style="background-image:url(', '|')
+        htmlcast = htmlcast.replace('<img src="https://imgs.dvdempire.com/res/pm/pixel.gif" alt="" title="" class="img-responsive headshot" style="background-image:url(', '|')
         htmlcast = HTML.ElementFromString(htmlcast).text_content()
         htmlcast = htmlcast.split('|')
         htmlcast = htmlcast[1:]
