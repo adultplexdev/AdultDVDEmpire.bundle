@@ -122,16 +122,36 @@ class ADEAgent(Agent.Movies):
 
 		# Change to high res img -- This part need to be made better.
         htmlcast = htmlcast.replace('t.jpg', 'h.jpg')
-        htmlcast = htmlcast.replace('<img src="https://imgs.dvdempire.com/res/pm/pixel.gif" alt="" title="" class="img-responsive headshot" style="background-image:url(', '|')
+        htmlcast = htmlcast.replace('<img src="https://imgs1cdn.adultempire.com/res/pm/pixel.gif" alt="" title="" class="img-responsive headshot" style="background-image:url(', '|')
         htmlcast = HTML.ElementFromString(htmlcast).text_content()
         htmlcast = htmlcast.split('|')
         htmlcast = htmlcast[1:]
+        # upperlist is simply an array of the top list to compare the bottom list against
+        upperlist = []
         for cast in htmlcast:
           if (len(cast) > 0):
             imgURL, nameValue = cast.split('DIVIDER')
+            upperlist.append(nameValue.strip())
             role = metadata.roles.new()
             role.name = nameValue
             role.photo = imgURL
+
+        # Bottom List: doesn't have photo links available, so only uses to add names to the ones from the upper
+        if html.xpath('//a[contains(@class,"PerformerName")][not(ancestor::small)]'):
+          htmlcastLower = html.xpath('//a[contains(@class,"PerformerName")][not(ancestor::small)]/text()')
+          lowerlist = []
+          for removedupestar in htmlcastLower:
+            lowerlist.append(removedupestar.strip())
+          lowerlist = list(set(lowerlist))
+          for lowerstar in lowerlist:
+            if (len(lowerstar) > 0):
+              # There are different descriptors that will show up as a name, for now just adding them ad-hoc
+              # to following statement with "and lowerstar.lower() != 'bio'"
+              if (lowerstar not in upperlist and lowerstar.lower() != 'bio' and lowerstar.lower() != 'interview'):
+                role = metadata.roles.new()
+                role.name = lowerstar
+                Log('Added Lower List Star: %s' %str(lowerstar))
+
     except Exception, e:
       Log('Got an exception while parsing cast %s' %str(e))
      
