@@ -36,8 +36,15 @@ class ADEAgent(Agent.Movies):
       # curID = the ID portion of the href in 'movie'
       curID = movie.get('href').split('/',2)[1]
       score = INITIAL_SCORE - Util.LevenshteinDistance(title.lower(), curName.lower())
+
+      #If the category is VOD then lower the score by half to place it lower than DVD results
+      movie2 = movie.xpath('./@category')
+      if len(movie2) > 0:
+        if 'gridviewvod' in movie2[0].lower():
+          score = score / 2
+
       if curName.lower().count(title.lower()):
-        results.Append(MetadataSearchResult(id = curID, name = curName, score = INITIAL_SCORE, lang = lang))
+        results.Append(MetadataSearchResult(id = curID, name = curName, score = score, lang = lang))
       elif (score >= GOOD_SCORE):
         results.Append(MetadataSearchResult(id = curID, name = curName, score = score, lang = lang))
 
