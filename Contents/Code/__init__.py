@@ -2,6 +2,7 @@
 # Update: 8 January 2019
 # Description: New updates from a lot of diffrent forks and people. Please read README.md for more details.
 import re
+import datetime
 
 # URLS
 ADE_BASEURL = 'http://www.adultdvdempire.com'
@@ -61,7 +62,8 @@ class ADEAgent(Agent.Movies):
       # In the list view the release date is available.  Let's get that and append it to the title
       moviedate = movie.xpath('.//small[contains(text(),"released")]/following-sibling::text()[1]')[0].strip()
       if len(moviedate) > 0:
-          curName += "  [" + moviedate +"]"
+        moviedate = datetime.datetime.strptime(moviedate, "%m/%d/%Y").strftime("%Y-%m-%d")
+        curName += "  [" + moviedate +"]"
 
 
       if curName.lower().count(title.lower()):
@@ -74,7 +76,7 @@ class ADEAgent(Agent.Movies):
   def update(self, metadata, media, lang):
     html = HTML.ElementFromURL(ADE_MOVIE_INFO % metadata.id)
     metadata.title = media.title
-    metadata.title = re.sub(r'\ \ \[\d+/\d+/\d+\]','',metadata.title).strip()
+    metadata.title = re.sub(r'\ \ \[\d+-\d+-\d+\]','',metadata.title).strip()
     #This strips the format type returned in the "curName += "  (VOD)" style lines above
     #You can uncomment them and this to make it work, I jsut thought it was too busy with
     #The dates listed as well, not to mention that formats are sorted by type with the score
