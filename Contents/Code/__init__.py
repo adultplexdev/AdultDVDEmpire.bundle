@@ -1,14 +1,17 @@
 # AdultDVDEmpire
 # Update: 8 January 2019
 # Description: New updates from a lot of diffrent forks and people. Please read README.md for more details.
+import re
 
 # URLS
 ADE_BASEURL = 'http://www.adultdvdempire.com'
-ADE_SEARCH_MOVIES = ADE_BASEURL + '/allsearch/search?q=%s'
+ADE_SEARCH_MOVIES = ADE_BASEURL + '/allsearch/search?view=list&q=%s'
 ADE_MOVIE_INFO = ADE_BASEURL + '/%s/'
 
 INITIAL_SCORE = 100
 GOOD_SCORE = 98
+
+titleFormats = r'\(DVD\)|\(Blu-Ray\)|\(BR\)|\(VOD\)'
 
 def Start():
   HTTP.CacheTime = CACHE_1MINUTE
@@ -27,21 +30,39 @@ class ADEAgent(Agent.Movies):
 
     query = String.URLEncode(String.StripDiacritics(title.replace('-','')))
     # Finds div with class=item
-    for movie in HTML.ElementFromURL(ADE_SEARCH_MOVIES % query).xpath('//div[contains(@class, "col-xs-6")]//div[@class="item-title"]/a[1]'):
+    for movie in HTML.ElementFromURL(ADE_SEARCH_MOVIES % query).xpath('//div[contains(@class,"row list-view-item")]'):
       # curName = The text in the 'title' p
-      curName = movie.text_content().strip()
+      moviehref = movie.xpath('.//a[contains(@label,"Title")]')[0]
+      curName = moviehref.text_content().strip()
       if curName.count(', The'):
         curName = 'The ' + curName.replace(', The','',1)
 
       # curID = the ID portion of the href in 'movie'
-      curID = movie.get('href').split('/',2)[1]
+      curID = moviehref.get('href').split('/',2)[1]
       score = INITIAL_SCORE - Util.LevenshteinDistance(title.lower(), curName.lower())
 
       #If the category is VOD then lower the score by half to place it lower than DVD results
-      movie2 = movie.xpath('./@category')
+      #movie2 = movie.xpath('//small[contains(text(),"DVD-Video") or contains(text(),"Video On Demand") or contains(text(),"Blu-ray")]')
+      movie2 = movie.xpath('.//small[contains(text(),"DVD-Video")]')
       if len(movie2) > 0:
-        if 'gridviewvod' in movie2[0].lower():
-          score = score / 2
+        score = (score / 10) + 90
+        #curName += "  (DVD)"
+
+      movie2 = movie.xpath('.//small[contains(text(),"Blu-ray")]')
+      if len(movie2) > 0:
+        score = (score / 10) + 70
+        #curName += "  (BR)"
+
+      movie2 = movie.xpath('.//small[contains(text(),"Video On Demand")]')
+      if len(movie2) > 0:
+        score = (score / 10) + 30
+        #curName += "  (VOD)"
+
+      # In the list view the release date is available.  Let's get that and append it to the title
+      moviedate = movie.xpath('.//small[contains(text(),"released")]/following-sibling::text()[1]')[0].strip()
+      if len(moviedate) > 0:
+          curName += "  [" + moviedate +"]"
+
 
       if curName.lower().count(title.lower()):
         results.Append(MetadataSearchResult(id = curID, name = curName, score = score, lang = lang))
@@ -53,6 +74,12 @@ class ADEAgent(Agent.Movies):
   def update(self, metadata, media, lang):
     html = HTML.ElementFromURL(ADE_MOVIE_INFO % metadata.id)
     metadata.title = media.title
+    metadata.title = re.sub(r'\ \ \[\d+/\d+/\d+\]','',metadata.title).strip()
+    #This strips the format type returned in the "curName += "  (VOD)" style lines above
+    #You can uncomment them and this to make it work, I jsut thought it was too busy with
+    #The dates listed as well, not to mention that formats are sorted by type with the score
+    #DVD = 91-100, Blu-Ray = 71-80, VOD = 31-40
+    #metadata.title = re.sub(titleFormats,'',metadata.title).strip()
 
     # Thumb and Poster
     try:
