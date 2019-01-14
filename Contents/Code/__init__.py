@@ -10,7 +10,7 @@ ADE_SEARCH_MOVIES = ADE_BASEURL + '/allsearch/search?view=list&q=%s'
 ADE_MOVIE_INFO = ADE_BASEURL + '/%s/'
 
 INITIAL_SCORE = 100
-GOOD_SCORE = 98
+GOOD_SCORE = 93
 
 titleFormats = r'\(DVD\)|\(Blu-Ray\)|\(BR\)|\(VOD\)'
 
@@ -30,46 +30,100 @@ class ADEAgent(Agent.Movies):
       title = media.primary_metadata.title
 
     query = String.URLEncode(String.StripDiacritics(title.replace('-','')))
-    # Finds div with class=item
+
+    # resultarray[] is used to filter out duplicate search results
+    resultarray=[]
+
+    # Finds the entire media enclosure <DIV> elements then steps through them
     for movie in HTML.ElementFromURL(ADE_SEARCH_MOVIES % query).xpath('//div[contains(@class,"row list-view-item")]'):
       # curName = The text in the 'title' p
       moviehref = movie.xpath('.//a[contains(@label,"Title")]')[0]
       curName = moviehref.text_content().strip()
       if curName.count(', The'):
         curName = 'The ' + curName.replace(', The','',1)
+      yearName = curName
 
       # curID = the ID portion of the href in 'movie'
       curID = moviehref.get('href').split('/',2)[1]
       score = INITIAL_SCORE - Util.LevenshteinDistance(title.lower(), curName.lower())
 
+      # In the list view the release date is available.  Let's get that and append it to the title
+      # This has been superseded by Production Year instead, but leaving the code in in case we want
+      # to display that later instead
+      try:
+        moviedate = movie.xpath('.//small[contains(text(),"released")]/following-sibling::text()[1]')[0].strip()
+        if len(moviedate) > 0:
+          moviedate = datetime.datetime.strptime(moviedate, "%m/%d/%Y").strftime("%Y-%m-%d")
+          yearName = curName
+          curName += "  [" + moviedate +"]"
+      except: pass
+
+      # Parse out the "Production Year" and use that for identification since release date is usually different
+      # between formats.  Also the Try: block is because not all releases have Production Year associated
+      try:
+        curYear = movie.xpath('.//a[@label="Title"]/following-sibling::small')[0].text_content().strip()
+        if len(curYear):
+          if not re.match(r"\(\d\d\d\d\)",curYear):
+            curYear = None
+          else:
+            yearName += " " + curYear
+      except: pass
+
       #If the category is VOD then lower the score by half to place it lower than DVD results
       #movie2 = movie.xpath('//small[contains(text(),"DVD-Video") or contains(text(),"Video On Demand") or contains(text(),"Blu-ray")]')
       movie2 = movie.xpath('.//small[contains(text(),"DVD-Video")]')
       if len(movie2) > 0:
-        score = (score / 10) + 90
+        mediaformat = "dvd"
+        #score = (score / 10) + 90
         #curName += "  (DVD)"
 
       movie2 = movie.xpath('.//small[contains(text(),"Blu-ray")]')
       if len(movie2) > 0:
-        score = (score / 10) + 70
+        mediaformat = "br"
+        #score = (score / 10) + 40
         #curName += "  (BR)"
 
       movie2 = movie.xpath('.//small[contains(text(),"Video On Demand")]')
       if len(movie2) > 0:
-        score = (score / 10) + 30
+        #score = (score / 10) + 20
+        mediaformat = "vod"
         #curName += "  (VOD)"
 
-      # In the list view the release date is available.  Let's get that and append it to the title
-      moviedate = movie.xpath('.//small[contains(text(),"released")]/following-sibling::text()[1]')[0].strip()
-      if len(moviedate) > 0:
-        moviedate = datetime.datetime.strptime(moviedate, "%m/%d/%Y").strftime("%Y-%m-%d")
-        curName += "  [" + moviedate +"]"
+      # This is pretty kludgey, but couldn't wrap my mind around Python's handling of associative arrays
+      # Therefore I just write the row into a delimited string and then process
+      # Essentially this is to make sure that you only have VOD results in the list if there's no dvd
+      # or Blu-Ray entry available
+      # It builds up the resultarray[] array, which is then stepped through in the next section
+      # This is run on each found result
+      resultrow = yearName + "<DIVIDER>" + curID + "<DIVIDER>" + mediaformat + "<DIVIDER>" + str(score)
+      resultpointer = None
+      resulttemparray = []
+      for resulttempentry in resultarray:
+        resultname, resultid, resultformat, resultscore = resulttempentry.split("<DIVIDER>")
+        if resultname == yearName:
+            if (resultformat == 'dvd' or resultformat == 'br') and mediaformat == 'vod':
+                resultpointer = 1 #1 indicates that we already have a better result, don't write
+            if resultformat == 'br' and mediaformat =='dvd':
+                resultpointer = 1 #1 indicates that we already have a better result, don't write
+        # The following lines remove previously entered less valuable data
+        if not ((resultformat == 'vod' and (mediaformat == 'dvd' or mediaformat == 'br')) or (resultformat == 'dvd' and mediaformat == 'br')):
+          resulttemparray.append(resulttempentry)
 
+      resultarray = resulttemparray
 
-      if curName.lower().count(title.lower()):
-        results.Append(MetadataSearchResult(id = curID, name = curName, score = score, lang = lang))
-      elif (score >= GOOD_SCORE):
-        results.Append(MetadataSearchResult(id = curID, name = curName, score = score, lang = lang))
+      if resultpointer is None:
+        resultarray.append(resultrow)
+
+    # Just need to step through the returned resultarray[], split out the segments and pop them onto the stack
+    # IF: 1) the returned media name contains the exact search term
+    # or: 2) if the resulting score is higher than GOOD_SCORE (93 for me) on a Levenshtein Distance calculation
+    for entry in resultarray:
+      entryName, entryID, entryFormat, entryScore = entry.split("<DIVIDER>")
+      entryScore = int(entryScore)
+      if entryName.lower().count(title.lower()):
+        results.Append(MetadataSearchResult(id = entryID, name = entryName, score = entryScore, lang = lang))
+      elif (entryScore >= GOOD_SCORE):
+        results.Append(MetadataSearchResult(id = entryID, name = entryName, score = entryScore, lang = lang))
 
     results.Sort('score', descending=True)
 
@@ -77,6 +131,7 @@ class ADEAgent(Agent.Movies):
     html = HTML.ElementFromURL(ADE_MOVIE_INFO % metadata.id)
     metadata.title = media.title
     metadata.title = re.sub(r'\ \ \[\d+-\d+-\d+\]','',metadata.title).strip()
+    metadata.title = re.sub(r'\ \(\d\d\d\d\)','',metadata.title).strip()
     #This strips the format type returned in the "curName += "  (VOD)" style lines above
     #You can uncomment them and this to make it work, I jsut thought it was too busy with
     #The dates listed as well, not to mention that formats are sorted by type with the score
@@ -109,7 +164,7 @@ class ADEAgent(Agent.Movies):
 
     # Match diffrent code, some titles are missing parts -- Still fails and needs to be refined.
     if html.xpath('//*[@id="content"]/div[2]/div[3]/div/div[1]/ul'):
-      productinfo = HTML.StringFromElement(html.xpath('//*[@id="content"]/div[2]/div[3]/div/div[1]/ul')[0])    
+      productinfo = HTML.StringFromElement(html.xpath('//*[@id="content"]/div[2]/div[3]/div/div[1]/ul')[0])
     if html.xpath('//*[@id="content"]/div[2]/div[4]/div/div[1]/ul'):
       productinfo = HTML.StringFromElement(html.xpath('//*[@id="content"]/div[2]/div[4]/div/div[1]/ul')[0])
     if html.xpath('//*[@id="content"]/div[2]/div[2]/div/div[1]/ul'):
@@ -133,11 +188,11 @@ class ADEAgent(Agent.Movies):
     if data.has_key('Rating'):
       metadata.content_rating = data['Rating']
 
-    # Studio    
+    # Studio
     if data.has_key('Studio'):
       metadata.studio = data['Studio']
 
-    # Release   
+    # Release
     if data.has_key('Released'):
       try:
         metadata.originally_available_at = Datetime.ParseDate(data['Released']).date()
@@ -190,11 +245,11 @@ class ADEAgent(Agent.Movies):
 
     except Exception, e:
       Log('Got an exception while parsing cast %s' %str(e))
-     
+
     # Director
     try:
       metadata.directors.clear()
-      if html.xpath('//a[contains(@label, "Director - details")]'):    
+      if html.xpath('//a[contains(@label, "Director - details")]'):
         htmldirector = HTML.StringFromElement(html.xpath('//a[contains(@label, "Director - details")]')[0])
         htmldirector = HTML.ElementFromString(htmldirector).text_content().strip()
         if (len(htmldirector) > 0):
@@ -232,4 +287,3 @@ class ADEAgent(Agent.Movies):
               if gname != "Sale": metadata.genres.add(gname)
     except Exception, e:
       Log('Got an exception while parsing genres %s' %str(e))
-
