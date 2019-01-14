@@ -49,11 +49,13 @@ class ADEAgent(Agent.Movies):
       # In the list view the release date is available.  Let's get that and append it to the title
       # This has been superseded by Production Year instead, but leaving the code in in case we want
       # to display that later instead
-      moviedate = movie.xpath('.//small[contains(text(),"released")]/following-sibling::text()[1]')[0].strip()
-      if len(moviedate) > 0:
-        moviedate = datetime.datetime.strptime(moviedate, "%m/%d/%Y").strftime("%Y-%m-%d")
-        yearName = curName
-        curName += "  [" + moviedate +"]"
+      try:
+        moviedate = movie.xpath('.//small[contains(text(),"released")]/following-sibling::text()[1]')[0].strip()
+        if len(moviedate) > 0:
+          moviedate = datetime.datetime.strptime(moviedate, "%m/%d/%Y").strftime("%Y-%m-%d")
+          yearName = curName
+          curName += "  [" + moviedate +"]"
+      except: pass
 
       # Parse out the "Production Year" and use that for identification since release date is usually different
       # between formats.  Also the Try: block is because not all releases have Production Year associated
