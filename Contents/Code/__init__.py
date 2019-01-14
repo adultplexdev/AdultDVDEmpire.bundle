@@ -33,7 +33,6 @@ class ADEAgent(Agent.Movies):
 
     # resultarray[] is used to filter out duplicate search results
     resultarray=[]
-    yearName = title
 
     # Finds the entire media enclosure <DIV> elements then steps through them
     for movie in HTML.ElementFromURL(ADE_SEARCH_MOVIES % query).xpath('//div[contains(@class,"row list-view-item")]'):
@@ -42,6 +41,7 @@ class ADEAgent(Agent.Movies):
       curName = moviehref.text_content().strip()
       if curName.count(', The'):
         curName = 'The ' + curName.replace(', The','',1)
+      yearName = curName
 
       # curID = the ID portion of the href in 'movie'
       curID = moviehref.get('href').split('/',2)[1]
@@ -97,13 +97,20 @@ class ADEAgent(Agent.Movies):
       # This is run on each found result
       resultrow = yearName + "<DIVIDER>" + curID + "<DIVIDER>" + mediaformat + "<DIVIDER>" + str(score)
       resultpointer = None
+      resulttemparray = []
       for resulttempentry in resultarray:
         resultname, resultid, resultformat, resultscore = resulttempentry.split("<DIVIDER>")
         if resultname == yearName:
             if (resultformat == 'dvd' or resultformat == 'br') and mediaformat == 'vod':
-                resultpointer = 1
+                resultpointer = 1 #1 indicates that we already have a better result, don't write
             if resultformat == 'br' and mediaformat =='dvd':
-                resultpointer = 1
+                resultpointer = 1 #1 indicates that we already have a better result, don't write
+        # The following lines remove previously entered less valuable data
+        if not ((resultformat == 'vod' and (mediaformat == 'dvd' or mediaformat == 'br')) or (resultformat == 'dvd' and mediaformat == 'br')):
+          resulttemparray.append(resulttempentry)
+
+      resultarray = resulttemparray
+
       if resultpointer is None:
         resultarray.append(resultrow)
 
