@@ -41,6 +41,7 @@ class ADEAgent(Agent.Movies):
       curName = moviehref.text_content().strip()
       if curName.count(', The'):
         curName = 'The ' + curName.replace(', The','',1)
+      yearName = curName
 
       # curID = the ID portion of the href in 'movie'
       curID = moviehref.get('href').split('/',2)[1]
@@ -49,11 +50,13 @@ class ADEAgent(Agent.Movies):
       # In the list view the release date is available.  Let's get that and append it to the title
       # This has been superseded by Production Year instead, but leaving the code in in case we want
       # to display that later instead
-      moviedate = movie.xpath('.//small[contains(text(),"released")]/following-sibling::text()[1]')[0].strip()
-      if len(moviedate) > 0:
-        moviedate = datetime.datetime.strptime(moviedate, "%m/%d/%Y").strftime("%Y-%m-%d")
-        yearName = curName
-        curName += "  [" + moviedate +"]"
+      try:
+        moviedate = movie.xpath('.//small[contains(text(),"released")]/following-sibling::text()[1]')[0].strip()
+        if len(moviedate) > 0:
+          moviedate = datetime.datetime.strptime(moviedate, "%m/%d/%Y").strftime("%Y-%m-%d")
+          yearName = curName
+          curName += "  [" + moviedate +"]"
+      except: pass
 
       # Parse out the "Production Year" and use that for identification since release date is usually different
       # between formats.  Also the Try: block is because not all releases have Production Year associated
@@ -94,13 +97,20 @@ class ADEAgent(Agent.Movies):
       # This is run on each found result
       resultrow = yearName + "<DIVIDER>" + curID + "<DIVIDER>" + mediaformat + "<DIVIDER>" + str(score)
       resultpointer = None
+      resulttemparray = []
       for resulttempentry in resultarray:
         resultname, resultid, resultformat, resultscore = resulttempentry.split("<DIVIDER>")
         if resultname == yearName:
             if (resultformat == 'dvd' or resultformat == 'br') and mediaformat == 'vod':
-                resultpointer = 1
+                resultpointer = 1 #1 indicates that we already have a better result, don't write
             if resultformat == 'br' and mediaformat =='dvd':
-                resultpointer = 1
+                resultpointer = 1 #1 indicates that we already have a better result, don't write
+        # The following lines remove previously entered less valuable data
+        if not ((resultformat == 'vod' and (mediaformat == 'dvd' or mediaformat == 'br')) or (resultformat == 'dvd' and mediaformat == 'br')):
+          resulttemparray.append(resulttempentry)
+
+      resultarray = resulttemparray
+
       if resultpointer is None:
         resultarray.append(resultrow)
 
