@@ -33,6 +33,7 @@ class ADEAgent(Agent.Movies):
 
     # resultarray[] is used to filter out duplicate search results
     resultarray=[]
+    yearName = title
 
     # Finds the entire media enclosure <DIV> elements then steps through them
     for movie in HTML.ElementFromURL(ADE_SEARCH_MOVIES % query).xpath('//div[contains(@class,"row list-view-item")]'):
