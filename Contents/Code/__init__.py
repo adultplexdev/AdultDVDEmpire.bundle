@@ -44,19 +44,19 @@ class ADEAgent(Agent.Movies):
 
       #If the category is VOD then lower the score by half to place it lower than DVD results
       #movie2 = movie.xpath('//small[contains(text(),"DVD-Video") or contains(text(),"Video On Demand") or contains(text(),"Blu-ray")]')
-      movie2 = movie.xpath('.//small[contains(text(),"DVD-Video")]')
-      if len(movie2) > 0:
-        score = (score / 10) + 90
+      #movie2 = movie.xpath('.//small[contains(text(),"DVD-Video")]')
+      #if len(movie2) > 0:
+        #score = (score / 10) + 90
         #curName += "  (DVD)"
 
       movie2 = movie.xpath('.//small[contains(text(),"Blu-ray")]')
       if len(movie2) > 0:
-        score = (score / 10) + 70
+        score = (score / 10) + 40
         #curName += "  (BR)"
 
       movie2 = movie.xpath('.//small[contains(text(),"Video On Demand")]')
       if len(movie2) > 0:
-        score = (score / 10) + 30
+        score = (score / 10) + 20
         #curName += "  (VOD)"
 
       # In the list view the release date is available.  Let's get that and append it to the title
