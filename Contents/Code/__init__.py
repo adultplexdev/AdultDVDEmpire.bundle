@@ -77,12 +77,12 @@ class ADEAgent(Agent.Movies):
       movie2 = movie.xpath('.//small[contains(text(),"Blu-ray")]')
       if len(movie2) > 0:
         mediaformat = "br"
-        score = (score / 10) + 40
+        #score = (score / 10) + 40
         #curName += "  (BR)"
 
       movie2 = movie.xpath('.//small[contains(text(),"Video On Demand")]')
       if len(movie2) > 0:
-        score = (score / 10) + 20
+        #score = (score / 10) + 20
         mediaformat = "vod"
         #curName += "  (VOD)"
 
@@ -97,7 +97,9 @@ class ADEAgent(Agent.Movies):
       for resulttempentry in resultarray:
         resultname, resultid, resultformat, resultscore = resulttempentry.split("<DIVIDER>")
         if resultname == yearName:
-            if (resultformat == 'vod' and (mediaformat =='dvd' or mediaformat == 'br')) or mediaformat == 'vod':
+            if (resultformat == 'dvd' or resultformat == 'br') and mediaformat == 'vod':
+                resultpointer = 1
+            if resultformat == 'br' and mediaformat =='dvd':
                 resultpointer = 1
       if resultpointer is None:
         resultarray.append(resultrow)
