@@ -1,0 +1,22 @@
+
+[
+  {
+    "id":"debug",
+    "label":"Enable debug logging",
+    "type":"bool",
+    "default":"false"
+  },
+  {
+    "id":"dateformat",
+    "label":"Display Production Date instead of Release Date",
+    "type":"bool",
+    "default":"true"
+  },
+  {
+    "id":"searchtype",
+    "label":"Formats to Search (Default to all types)",
+    "type":"enum",
+    "values":["ALL","DVD","VOD","BLURAY"],
+    "default":"ALL"
+  }
+]
