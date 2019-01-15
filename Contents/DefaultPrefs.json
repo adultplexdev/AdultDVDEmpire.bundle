@@ -16,7 +16,19 @@
     "id":"searchtype",
     "label":"Formats to Search (Default to all types)",
     "type":"enum",
-    "values":["ALL","DVD","VOD","BLURAY"],
-    "default":"ALL"
+    "values":["all","dvd","vod","bluray"],
+    "default":"all"
+  },
+  {
+    "id":"ignoregenres",
+    "label":"Genres/Categories to ignore, case insensitive (entries separated by | character)",
+    "type":"text",
+    "default":"Sale|4K Ultra HD"
+  },
+  {
+    "id":"goodscore",
+    "label":"Scoring value to show results over.  Results containing the exact search term will always be shown (The score is an integer value, 100 for perfect match.  98 Default)",
+    "type":"text",
+    "default":"98"
   }
 ]

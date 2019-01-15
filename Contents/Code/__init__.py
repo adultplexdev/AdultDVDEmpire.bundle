@@ -4,19 +4,43 @@
 import re
 import datetime
 
+# preferences
+preference = Prefs
+DEBUG = preference['debug']
+if DEBUG:
+  Log('Agent debug logging is enabled!')
+else:
+  Log('Agent debug logging is disabled!')
+
+
+if len(preference['searchtype']) and preference['searchtype'] != 'all':
+  searchtype = preference['searchtype']
+else:
+  searchtype = 'allsearch'
+if DEBUG:Log('Search Type: %s' % str(preference['searchtype']))
+
 # URLS
 ADE_BASEURL = 'http://www.adultdvdempire.com'
-ADE_SEARCH_MOVIES = ADE_BASEURL + '/allsearch/search?view=list&q=%s'
+ADE_SEARCH_MOVIES = ADE_BASEURL + '/' + searchtype + '/search?view=list&q=%s'
 ADE_MOVIE_INFO = ADE_BASEURL + '/%s/'
 
+scoreprefs = int(preference['goodscore'].strip())
+if scoreprefs > 1:
+    GOOD_SCORE = scoreprefs
+else:
+    GOOD_SCORE = 98
+if DEBUG:Log('Result Score: %i' % GOOD_SCORE)
+
 INITIAL_SCORE = 100
-GOOD_SCORE = 93
 
 titleFormats = r'\(DVD\)|\(Blu-Ray\)|\(BR\)|\(VOD\)'
 
 def Start():
   HTTP.CacheTime = CACHE_1MINUTE
   HTTP.SetHeader('User-agent', 'Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.2; Trident/4.0; SLCC2; .NET CLR 2.0.50727; .NET CLR 3.5.30729; .NET CLR 3.0.30729; Media Center PC 6.0)')
+
+def ValidatePrefs():
+  pass
 
 class ADEAgent(Agent.Movies):
   name = 'Adult DVD Empire'
@@ -33,97 +57,106 @@ class ADEAgent(Agent.Movies):
 
     # resultarray[] is used to filter out duplicate search results
     resultarray=[]
-
+    if DEBUG: Log('Search Query: %s' % str(ADE_SEARCH_MOVIES % query))
     # Finds the entire media enclosure <DIV> elements then steps through them
     for movie in HTML.ElementFromURL(ADE_SEARCH_MOVIES % query).xpath('//div[contains(@class,"row list-view-item")]'):
       # curName = The text in the 'title' p
-      moviehref = movie.xpath('.//a[contains(@label,"Title")]')[0]
-      curName = moviehref.text_content().strip()
-      if curName.count(', The'):
-        curName = 'The ' + curName.replace(', The','',1)
-      yearName = curName
-
-      # curID = the ID portion of the href in 'movie'
-      curID = moviehref.get('href').split('/',2)[1]
-      score = INITIAL_SCORE - Util.LevenshteinDistance(title.lower(), curName.lower())
-
-      # In the list view the release date is available.  Let's get that and append it to the title
-      # This has been superseded by Production Year instead, but leaving the code in in case we want
-      # to display that later instead
       try:
-        moviedate = movie.xpath('.//small[contains(text(),"released")]/following-sibling::text()[1]')[0].strip()
-        if len(moviedate) > 0:
-          moviedate = datetime.datetime.strptime(moviedate, "%m/%d/%Y").strftime("%Y-%m-%d")
-          yearName = curName
-          curName += "  [" + moviedate +"]"
-      except: pass
+        moviehref = movie.xpath('.//a[contains(@label,"Title")]')[0]
+        curName = moviehref.text_content().strip()
+        if DEBUG: Log('Initial Result Name found: %s' % str(curName))
+        if curName.count(', The'):
+          curName = 'The ' + curName.replace(', The','',1)
+        yearName = curName
+        relName = curName
 
-      # Parse out the "Production Year" and use that for identification since release date is usually different
-      # between formats.  Also the Try: block is because not all releases have Production Year associated
-      try:
-        curYear = movie.xpath('.//a[@label="Title"]/following-sibling::small')[0].text_content().strip()
-        if len(curYear):
-          if not re.match(r"\(\d\d\d\d\)",curYear):
-            curYear = None
-          else:
-            yearName += " " + curYear
-      except: pass
+        # curID = the ID portion of the href in 'movie'
+        curID = moviehref.get('href').split('/',2)[1]
+        score = INITIAL_SCORE - Util.LevenshteinDistance(title.lower(), curName.lower())
 
-      #If the category is VOD then lower the score by half to place it lower than DVD results
-      #movie2 = movie.xpath('//small[contains(text(),"DVD-Video") or contains(text(),"Video On Demand") or contains(text(),"Blu-ray")]')
-      movie2 = movie.xpath('.//small[contains(text(),"DVD-Video")]')
-      if len(movie2) > 0:
-        mediaformat = "dvd"
-        #score = (score / 10) + 90
-        #curName += "  (DVD)"
+        # In the list view the release date is available.  Let's get that and append it to the title
+        # This has been superseded by Production Year instead, but leaving the code in in case we want
+        # to display that later instead
+        try:
+          moviedate = movie.xpath('.//small[contains(text(),"released")]/following-sibling::text()[1]')[0].strip()
+          if len(moviedate) > 0:
+            moviedate = datetime.datetime.strptime(moviedate, "%m/%d/%Y").strftime("%Y-%m-%d")
+            yearName = curName
+            relName += "  [" + moviedate +"]"
+        except: pass
 
-      movie2 = movie.xpath('.//small[contains(text(),"Blu-ray")]')
-      if len(movie2) > 0:
-        mediaformat = "br"
-        #score = (score / 10) + 40
-        #curName += "  (BR)"
+        # Parse out the "Production Year" and use that for identification since release date is usually different
+        # between formats.  Also the Try: block is because not all releases have Production Year associated
+        try:
+          curYear = movie.xpath('.//a[@label="Title"]/following-sibling::small')[0].text_content().strip()
+          if len(curYear):
+            if not re.match(r"\(\d\d\d\d\)",curYear):
+              curYear = None
+            else:
+              yearName += " " + curYear
+        except: pass
 
-      movie2 = movie.xpath('.//small[contains(text(),"Video On Demand")]')
-      if len(movie2) > 0:
-        #score = (score / 10) + 20
-        mediaformat = "vod"
-        #curName += "  (VOD)"
+        if preference['searchtype'] == 'all':
+          #If the category is VOD then lower the score by half to place it lower than DVD results
+          #movie2 = movie.xpath('//small[contains(text(),"DVD-Video") or contains(text(),"Video On Demand") or contains(text(),"Blu-ray")]')
+          movie2 = movie.xpath('.//small[contains(text(),"DVD-Video")]')
+          if len(movie2) > 0:
+            mediaformat = "dvd"
 
-      # This is pretty kludgey, but couldn't wrap my mind around Python's handling of associative arrays
-      # Therefore I just write the row into a delimited string and then process
-      # Essentially this is to make sure that you only have VOD results in the list if there's no dvd
-      # or Blu-Ray entry available
-      # It builds up the resultarray[] array, which is then stepped through in the next section
-      # This is run on each found result
-      resultrow = yearName + "<DIVIDER>" + curID + "<DIVIDER>" + mediaformat + "<DIVIDER>" + str(score)
-      resultpointer = None
-      resulttemparray = []
-      for resulttempentry in resultarray:
-        resultname, resultid, resultformat, resultscore = resulttempentry.split("<DIVIDER>")
-        if resultname == yearName:
-            if (resultformat == 'dvd' or resultformat == 'br') and mediaformat == 'vod':
+          movie2 = movie.xpath('.//small[contains(text(),"Blu-ray")]')
+          if len(movie2) > 0:
+            mediaformat = "br"
+
+          movie2 = movie.xpath('.//small[contains(text(),"Video On Demand")]')
+          if len(movie2) > 0:
+            mediaformat = "vod"
+
+        else:
+            mediaformat = 'NA'
+
+        # This is pretty kludgey, but couldn't wrap my mind around Python's handling of associative arrays
+        # Therefore I just write the row into a delimited string and then process
+        # Essentially this is to make sure that you only have VOD results in the list if there's no dvd
+        # or Blu-Ray entry available
+        # It builds up the resultarray[] array, which is then stepped through in the next section
+        # This is run on each found result
+        resultrow = yearName + "<DIVIDER>" + curID + "<DIVIDER>" + mediaformat + "<DIVIDER>" + str(score) + "<DIVIDER>" + relName
+        resultpointer = None
+        if preference['searchtype'] == 'all':
+          resulttemparray = []
+          for resulttempentry in resultarray:
+            resultname, resultid, resultformat, resultscore, resultrelname = resulttempentry.split("<DIVIDER>")
+            if resultname == yearName:
+              if (resultformat == 'dvd' or resultformat == 'br') and mediaformat == 'vod':
                 resultpointer = 1 #1 indicates that we already have a better result, don't write
-            if resultformat == 'br' and mediaformat =='dvd':
+              if resultformat == 'br' and mediaformat =='dvd':
                 resultpointer = 1 #1 indicates that we already have a better result, don't write
-        # The following lines remove previously entered less valuable data
-        if not ((resultformat == 'vod' and (mediaformat == 'dvd' or mediaformat == 'br')) or (resultformat == 'dvd' and mediaformat == 'br')):
-          resulttemparray.append(resulttempentry)
+            # The following lines remove previously entered less valuable data
+            if not ((resultformat == 'vod' and (mediaformat == 'dvd' or mediaformat == 'br')) or (resultformat == 'dvd' and mediaformat == 'br')):
+              resulttemparray.append(resulttempentry)
+          resultarray = resulttemparray
 
-      resultarray = resulttemparray
-
-      if resultpointer is None:
-        resultarray.append(resultrow)
+        if resultpointer is None:
+          resultarray.append(resultrow)
+      except: pass
 
     # Just need to step through the returned resultarray[], split out the segments and pop them onto the stack
     # IF: 1) the returned media name contains the exact search term
     # or: 2) if the resulting score is higher than GOOD_SCORE (93 for me) on a Levenshtein Distance calculation
     for entry in resultarray:
-      entryName, entryID, entryFormat, entryScore = entry.split("<DIVIDER>")
+      entryYearName, entryID, entryFormat, entryScore, entryRelName = entry.split("<DIVIDER>")
+      if preference['dateformat']:
+        moviename = entryYearName
+        #log.debug('Year Movie returned: %s' % str(moviename))
+      else:
+        moviename = entryRelName
+        #log.debug('ReleaseDate Movie returned: %s' % str(moviename))
+
       entryScore = int(entryScore)
-      if entryName.lower().count(title.lower()):
-        results.Append(MetadataSearchResult(id = entryID, name = entryName, score = entryScore, lang = lang))
+      if moviename.lower().count(title.lower()):
+        results.Append(MetadataSearchResult(id = entryID, name = moviename, score = entryScore, lang = lang))
       elif (entryScore >= GOOD_SCORE):
-        results.Append(MetadataSearchResult(id = entryID, name = entryName, score = entryScore, lang = lang))
+        results.Append(MetadataSearchResult(id = entryID, name = moviename, score = entryScore, lang = lang))
 
     results.Sort('score', descending=True)
 
@@ -272,6 +305,7 @@ class ADEAgent(Agent.Movies):
     # Genres
     try:
       metadata.genres.clear()
+      ignoregenres = [x.lower().strip() for x in preference['ignoregenres'].split('|')]
       if html.xpath('//*[contains(@class, "col-sm-4 spacing-bottom")]'):
         htmlgenres = HTML.StringFromElement(html.xpath('//*[contains(@class, "col-sm-4 spacing-bottom")]')[2])
         htmlgenres = htmlgenres.replace('\n', '|')
@@ -284,6 +318,6 @@ class ADEAgent(Agent.Movies):
         htmlgenres = htmlgenres[:-1]
         for gname in htmlgenres:
           if len(gname) > 0:
-              if gname != "Sale": metadata.genres.add(gname)
+              if not gname.lower().strip() in ignoregenres: metadata.genres.add(gname)
     except Exception, e:
       Log('Got an exception while parsing genres %s' %str(e))
