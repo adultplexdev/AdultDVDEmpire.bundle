@@ -8,7 +8,7 @@
   },
   {
     "id":"dateformat",
-    "label":"Display Production Year(YYYY) instead of Release Date [YYYY-MM-DD]",
+    "label":"Display Production Year (YYYY) instead of Release Date [YYYY-MM-DD]",
     "type":"bool",
     "default":"true"
   },
