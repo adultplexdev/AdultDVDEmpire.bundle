@@ -14,9 +14,9 @@ Plex metadata agent for fetching metadata for AdultDVDEmpire material.
   - User defined categories to ignore on import (Default: “Sale|4K Ultra HD”)
   - User definable GOOD_SCORE value (Default: 98)
   - If the search string is exactly in the returned result it will aways show.
-    *Apart from that, the score is determined by how many characters are different.
-    *For example, “Movie 1” vs “Movie Vol. 1” will have a score of 95 or so since it is five characters removed.
-    *The lower the number, the more results will be displayed to the user (up to the limit of the first page of search results)
+    * Apart from that, the score is determined by how many characters are different.
+    * For example, “Movie 1” vs “Movie Vol. 1” will have a score of 95 or so since it is five characters removed.
+    * The lower the number, the more results will be displayed to the user (up to the limit of the first page of search results)
     
 Donation:
 
