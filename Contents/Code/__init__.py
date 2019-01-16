@@ -82,7 +82,7 @@ class ADEAgent(Agent.Movies):
           if len(moviedate) > 0:
             moviedate = datetime.datetime.strptime(moviedate, "%m/%d/%Y").strftime("%Y-%m-%d")
             yearName = curName
-            relName += "  [" + moviedate +"]"
+            relName += " [" + moviedate +"]"
         except: pass
 
         # Parse out the "Production Year" and use that for identification since release date is usually different
@@ -121,18 +121,19 @@ class ADEAgent(Agent.Movies):
         # It builds up the resultarray[] array, which is then stepped through in the next section
         # This is run on each found result
         resultrow = yearName + "<DIVIDER>" + curID + "<DIVIDER>" + mediaformat + "<DIVIDER>" + str(score) + "<DIVIDER>" + relName
-        resultpointer = None
+        if DEBUG: Log('Result to process for appending: %s' % str(resultrow))
+
         if preference['searchtype'] == 'all':
           resulttemparray = []
+          resultpointer = None
           for resulttempentry in resultarray:
             resultname, resultid, resultformat, resultscore, resultrelname = resulttempentry.split("<DIVIDER>")
-            if resultname == yearName:
-              if (resultformat == 'dvd' or resultformat == 'br') and mediaformat == 'vod':
-                resultpointer = 1 #1 indicates that we already have a better result, don't write
-              if resultformat == 'br' and mediaformat =='dvd':
-                resultpointer = 1 #1 indicates that we already have a better result, don't write
+
+            # The following lines remove less valuable data going forward in the list
+            if (((mediaformat == 'vod' and (resultformat == 'dvd' or resultformat == 'br')) or (mediaformat == 'dvd' and resultformat == 'br')) and resultname == yearName):
+              resultpointer = 1 #1 indicates that we already have a better result, don't write
             # The following lines remove previously entered less valuable data
-            if not ((resultformat == 'vod' and (mediaformat == 'dvd' or mediaformat == 'br')) or (resultformat == 'dvd' and mediaformat == 'br')):
+            if not (((resultformat == 'vod' and (mediaformat == 'dvd' or mediaformat == 'br')) or (resultformat == 'dvd' and mediaformat == 'br')) and resultname == yearName):
               resulttemparray.append(resulttempentry)
           resultarray = resulttemparray
 
@@ -147,10 +148,18 @@ class ADEAgent(Agent.Movies):
       entryYearName, entryID, entryFormat, entryScore, entryRelName = entry.split("<DIVIDER>")
       if preference['dateformat']:
         moviename = entryYearName
-        #log.debug('Year Movie returned: %s' % str(moviename))
+        if (not re.search('\(\d{4}\)', entryYearName)) and (re.search('\[\d{4}-\d{2}-\d{2}\]', entryRelName)):
+          moviename = entryRelName
+          if DEBUG: Log('No Production Year Found, RelaseDate Movie returned: %s' % str(moviename))
+        else:
+          if DEBUG: Log('Prod Year Movie returned: %s' % str(moviename))
       else:
         moviename = entryRelName
-        #log.debug('ReleaseDate Movie returned: %s' % str(moviename))
+        if (re.search('\(\d{4}\)', entryYearName)) and (not re.search('\[\d{4}-\d{2}-\d{2}\]', entryRelName)):
+          moviename = entryYearName
+          if DEBUG: Log('No Release Date Found, Year Movie returned: %s' % str(moviename))
+        else:
+          if DEBUG: Log('ReleaseDate Movie returned: %s' % str(moviename))
 
       entryScore = int(entryScore)
       if moviename.lower().count(title.lower()):
@@ -163,8 +172,8 @@ class ADEAgent(Agent.Movies):
   def update(self, metadata, media, lang):
     html = HTML.ElementFromURL(ADE_MOVIE_INFO % metadata.id)
     metadata.title = media.title
-    metadata.title = re.sub(r'\ \ \[\d+-\d+-\d+\]','',metadata.title).strip()
-    metadata.title = re.sub(r'\ \(\d\d\d\d\)','',metadata.title).strip()
+    metadata.title = re.sub(r'\ \[\d{4}-\d{2}-\d{2}\]','',metadata.title).strip()
+    metadata.title = re.sub(r'\ \(\d{4}\)','',metadata.title).strip()
     #This strips the format type returned in the "curName += "  (VOD)" style lines above
     #You can uncomment them and this to make it work, I jsut thought it was too busy with
     #The dates listed as well, not to mention that formats are sorted by type with the score
