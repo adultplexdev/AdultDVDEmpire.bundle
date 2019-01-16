@@ -130,10 +130,10 @@ class ADEAgent(Agent.Movies):
             resultname, resultid, resultformat, resultscore, resultrelname = resulttempentry.split("<DIVIDER>")
 
             # The following lines remove less valuable data going forward in the list
-            if (((mediaformat == 'vod' and (resultformat == 'dvd' or resultformat == 'br')) or (mediaformat == 'dvd' and resultformat == 'br')) and resultname == yearName):
+            if (((mediaformat == 'vod' and (resultformat == 'dvd' or resultformat == 'br')) or (mediaformat == 'br' and resultformat == 'dvd')) and resultname == yearName):
               resultpointer = 1 #1 indicates that we already have a better result, don't write
             # The following lines remove previously entered less valuable data
-            if not (((resultformat == 'vod' and (mediaformat == 'dvd' or mediaformat == 'br')) or (resultformat == 'dvd' and mediaformat == 'br')) and resultname == yearName):
+            if not (((resultformat == 'vod' and (mediaformat == 'dvd' or mediaformat == 'br')) or (resultformat == 'br' and mediaformat == 'dvd')) and resultname == yearName):
               resulttemparray.append(resulttempentry)
           resultarray = resulttemparray
 
@@ -225,6 +225,7 @@ class ADEAgent(Agent.Movies):
       if ':' in div:
         name, value = div.split(':')
         data[name.strip()] = value.strip()
+        if DEBUG: Log('Title Metadata Key: [%s]   Value: [%s]', name.strip(), value.strip())
 
     # Rating
     if data.has_key('Rating'):
@@ -240,6 +241,22 @@ class ADEAgent(Agent.Movies):
         metadata.originally_available_at = Datetime.ParseDate(data['Released']).date()
         metadata.year = metadata.originally_available_at.year
       except: pass
+
+    # Production Year
+    # If the user preference is set, then we want to replace the 'Release Date' with a created date
+    # based off of the Production Year that is returned.  Don't want to do it unless the difference
+    # is greater than one year however, to allow for production at the end of the year with first of
+    # year release
+    if preference['useproductiondate']:
+        if data.has_key('Production Year'):
+          productionyear = int(data['Production Year'])
+          if productionyear > 1900:
+              if DEBUG: Log('Release Date Year for Title: %i' % metadata.year)
+              if DEBUG: Log('Production Year for Title: %i' % productionyear)
+              if (metadata.year > 1900) and ((metadata.year - productionyear) >1):
+                  metadata.year = productionyear
+                  metadata.originally_available_at = Datetime.ParseDate(str(productionyear) + "-01-01")
+                  if DEBUG: Log('Production Year earlier than release, setting date to: %s' % (str(productionyear) + "-01-01"))
 
     # Cast - added updated by Briadin / 20190108
     try:
