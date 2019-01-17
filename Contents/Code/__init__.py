@@ -377,16 +377,19 @@ class ADEAgent(Agent.Movies):
             pullscreenscount = 3
         try:
           imgs = html.xpath('//a[contains(@rel, "scenescreenshots")]')
-          screencount = 0
-          imagelist = self.Rand(1,len(imgs),pullscreenscount)
-          if DEBUG: Log('Pulling Screenshot Images: %s' % ', '.join(str(e) for e in imagelist))
-          for img in imgs:
-            screencount += 1
-            if screencount in imagelist:
-              thumbUrl = img.attrib['href']
-              if DEBUG: Log('Writing Screen Image # %s: %s' % (str(screencount), str(thumbUrl)))
-              thumb = HTTP.Request(thumbUrl)
-              metadata.art[thumbUrl] = Proxy.Media(thumb)
+          if len(imgs):
+            screencount = 0
+            imagelist = self.Rand(1,len(imgs),pullscreenscount)
+            if DEBUG: Log('Pulling Screenshot Images: %s' % ', '.join(str(e) for e in imagelist))
+            for img in imgs:
+              screencount += 1
+              if screencount in imagelist:
+                thumbUrl = img.attrib['href']
+                if DEBUG: Log('Writing Screen Image # %s: %s' % (str(screencount), str(thumbUrl)))
+                thumb = HTTP.Request(thumbUrl)
+                metadata.art[thumbUrl] = Proxy.Media(thumb)
+          else:
+            if DEBUG: Log('No Screenshot Images were found for media')
         except Exception, e:
           Log('Got an exception while parsing screenshot images %s' %str(e))
 
@@ -406,16 +409,21 @@ class ADEAgent(Agent.Movies):
           if galleryurl is not None:
             gallery = HTML.ElementFromURL(galleryurl)
             imagelist = gallery.xpath('//div/a[contains(@class, "thumb fancy")]')
-            gallerycount = 0
-            screenlist = self.Rand(1,len(imagelist),pullgallerycount)
-            if DEBUG: Log('Pulling Gallery Images: %s' % ', '.join(str(e) for e in screenlist))
-            for imgs in imagelist:
-              gallerycount += 1
-              if gallerycount in screenlist:
-                imageurl = imgs.attrib['href']
-                if DEBUG: Log('Writing Gallery Image # %s: %s' % (str(gallerycount),str(imageurl)))
-                image = HTTP.Request(imageurl)
-                metadata.art[imageurl] = Proxy.Media(image)
+            if len(imagelist):
+              gallerycount = 0
+              screenlist = self.Rand(1,len(imagelist),pullgallerycount)
+              if DEBUG: Log('Pulling Gallery Images: %s' % ', '.join(str(e) for e in screenlist))
+              for imgs in imagelist:
+                gallerycount += 1
+                if gallerycount in screenlist:
+                  imageurl = imgs.attrib['href']
+                  if DEBUG: Log('Writing Gallery Image # %s: %s' % (str(gallerycount),str(imageurl)))
+                  image = HTTP.Request(imageurl)
+                  metadata.art[imageurl] = Proxy.Media(image)
+            else:
+              if DEBUG: Log('No Gallery Images were found for media')
+          else:
+            if DEBUG: Log('No Gallery was found for media')
         except Exception, e:
             Log('Got an exception while parsing gallery images %s' %str(e))
 
