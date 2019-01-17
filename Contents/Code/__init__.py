@@ -3,6 +3,7 @@
 # Description: New updates from a lot of diffrent forks and people. Please read README.md for more details.
 import re
 import datetime
+import random
 
 # preferences
 preference = Prefs
@@ -64,7 +65,7 @@ class ADEAgent(Agent.Movies):
       try:
         moviehref = movie.xpath('.//a[contains(@label,"Title")]')[0]
         curName = moviehref.text_content().strip()
-        if DEBUG: Log('Initial Result Name found: %s' % str(curName))
+        #if DEBUG: Log('Initial Result Name found: %s' % str(curName))
         if curName.count(', The'):
           curName = 'The ' + curName.replace(', The','',1)
         yearName = curName
@@ -130,10 +131,10 @@ class ADEAgent(Agent.Movies):
             resultname, resultid, resultformat, resultscore, resultrelname = resulttempentry.split("<DIVIDER>")
 
             # The following lines remove less valuable data going forward in the list
-            if (((mediaformat == 'vod' and (resultformat == 'dvd' or resultformat == 'br')) or (mediaformat == 'dvd' and resultformat == 'br')) and resultname == yearName):
+            if (((mediaformat == 'vod' and (resultformat == 'dvd' or resultformat == 'br')) or (mediaformat == 'br' and resultformat == 'dvd')) and resultname == yearName):
               resultpointer = 1 #1 indicates that we already have a better result, don't write
             # The following lines remove previously entered less valuable data
-            if not (((resultformat == 'vod' and (mediaformat == 'dvd' or mediaformat == 'br')) or (resultformat == 'dvd' and mediaformat == 'br')) and resultname == yearName):
+            if not (((resultformat == 'vod' and (mediaformat == 'dvd' or mediaformat == 'br')) or (resultformat == 'br' and mediaformat == 'dvd')) and resultname == yearName):
               resulttemparray.append(resulttempentry)
           resultarray = resulttemparray
 
@@ -225,6 +226,7 @@ class ADEAgent(Agent.Movies):
       if ':' in div:
         name, value = div.split(':')
         data[name.strip()] = value.strip()
+        if DEBUG: Log('Title Metadata Key: [%s]   Value: [%s]', name.strip(), value.strip())
 
     # Rating
     if data.has_key('Rating'):
@@ -240,6 +242,22 @@ class ADEAgent(Agent.Movies):
         metadata.originally_available_at = Datetime.ParseDate(data['Released']).date()
         metadata.year = metadata.originally_available_at.year
       except: pass
+
+    # Production Year
+    # If the user preference is set, then we want to replace the 'Release Date' with a created date
+    # based off of the Production Year that is returned.  Don't want to do it unless the difference
+    # is greater than one year however, to allow for production at the end of the year with first of
+    # year release
+    if preference['useproductiondate']:
+        if data.has_key('Production Year'):
+          productionyear = int(data['Production Year'])
+          if productionyear > 1900:
+              if DEBUG: Log('Release Date Year for Title: %i' % metadata.year)
+              if DEBUG: Log('Production Year for Title: %i' % productionyear)
+              if (metadata.year > 1900) and ((metadata.year - productionyear) >1):
+                  metadata.year = productionyear
+                  metadata.originally_available_at = Datetime.ParseDate(str(productionyear) + "-01-01")
+                  if DEBUG: Log('Production Year earlier than release, setting date to: %s' % (str(productionyear) + "-01-01"))
 
     # Cast - added updated by Briadin / 20190108
     try:
@@ -330,3 +348,87 @@ class ADEAgent(Agent.Movies):
               if not gname.lower().strip() in ignoregenres: metadata.genres.add(gname)
     except Exception, e:
       Log('Got an exception while parsing genres %s' %str(e))
+
+    # 2019-01-17:
+    # The following code for Ratings, Background Art and Gallery images were copied From
+    # macr0dev's repository at https://github.com/macr0dev/AdultDVDEmpire.bundle then
+    # modified to work with user preferences and updated for the current website.
+    # However it is still Macr0dev's code in use
+    #
+    # Adapted fom Macr0dev's code
+    # Check for Average Rating
+    if html.xpath('//span[@class="rating-stars-avg"]/text()'):
+      averagerating = html.xpath('//span[@class="rating-stars-avg"]/text()')
+      averagerating = averagerating[0].strip()
+      averagerating = re.findall( r'\d+\.*\d*',averagerating)
+      if DEBUG: Log('Found an Average Rating of: %s' % str(averagerating[0]))
+      try:
+        metadata.rating = float(averagerating[0]) * 2
+      except: pass
+    else:
+      if DEBUG: Log('No Media Rating was Located')
+      metadata.rating = float(0)
+
+    # Adapted fom Macr0dev's code
+    # Background Art From Page
+    if preference['pullscreens']:
+        pullscreenscount = int(preference['pullscreenscount'])
+        if not (pullscreenscount > 0 and pullscreenscount < 50):
+            pullscreenscount = 3
+        try:
+          imgs = html.xpath('//a[contains(@rel, "scenescreenshots")]')
+          if len(imgs):
+            screencount = 0
+            imagelist = self.Rand(1,len(imgs),pullscreenscount)
+            if DEBUG: Log('Pulling Screenshot Images: %s' % ', '.join(str(e) for e in imagelist))
+            for img in imgs:
+              screencount += 1
+              if screencount in imagelist:
+                thumbUrl = img.attrib['href']
+                if DEBUG: Log('Writing Screen Image # %s: %s' % (str(screencount), str(thumbUrl)))
+                thumb = HTTP.Request(thumbUrl)
+                metadata.art[thumbUrl] = Proxy.Media(thumb)
+          else:
+            if DEBUG: Log('No Screenshot Images were found for media')
+        except Exception, e:
+          Log('Got an exception while parsing screenshot images %s' %str(e))
+
+    # Adapted fom Macr0dev's code
+    # Background Art From Gallery if it exists
+    if preference['pullgallery']:
+        pullgallerycount = int(preference['pullgallerycount'])
+        if not (pullgallerycount > 0 and pullgallerycount < 50):
+            pullgallerycount = 3
+        try:
+          galleryurl = None
+          gallery = html.xpath('//div[@class="user-action"]/a[contains(@class, "gallery")]')
+          for url in gallery:
+            galleryurl = ADE_BASEURL + url.attrib['href']
+            if DEBUG: Log('Gallery URL for Media: %s' % galleryurl)
+
+          if galleryurl is not None:
+            gallery = HTML.ElementFromURL(galleryurl)
+            imagelist = gallery.xpath('//div/a[contains(@class, "thumb fancy")]')
+            if len(imagelist):
+              gallerycount = 0
+              screenlist = self.Rand(1,len(imagelist),pullgallerycount)
+              if DEBUG: Log('Pulling Gallery Images: %s' % ', '.join(str(e) for e in screenlist))
+              for imgs in imagelist:
+                gallerycount += 1
+                if gallerycount in screenlist:
+                  imageurl = imgs.attrib['href']
+                  if DEBUG: Log('Writing Gallery Image # %s: %s' % (str(gallerycount),str(imageurl)))
+                  image = HTTP.Request(imageurl)
+                  metadata.art[imageurl] = Proxy.Media(image)
+            else:
+              if DEBUG: Log('No Gallery Images were found for media')
+          else:
+            if DEBUG: Log('No Gallery was found for media')
+        except Exception, e:
+            Log('Got an exception while parsing gallery images %s' %str(e))
+
+  def Rand(self, start, end, num):
+    res = []
+    for j in range(num):
+      res.append(random.randint(start, end))
+    return res
