@@ -2,7 +2,7 @@
 
 Plex metadata agent for fetching metadata for AdultDVDEmpire material.
 
-20190114 - Big update
+20190116 - Big update
 
 - Lots of misc bug fixes and various issues
 - Attribution text for the information button on the Setup -> Agents screen.
