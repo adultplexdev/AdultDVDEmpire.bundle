@@ -30,5 +30,35 @@
     "label":"Scoring value to show results over.  Results containing the exact search term will always be shown (The score is an integer value, 100 for perfect match.  98 Default)",
     "type":"text",
     "default":"98"
+  },
+  {
+    "id":"useproductiondate",
+    "label":"If the 'Production Year' is less than the 'Release Date Year', then use Production Year instead with Jan 1st appended for the date (YYYY-01-01)",
+    "type":"bool",
+    "default":"true"
+  },
+  {
+    "id":"pullscreens",
+    "label":"Retrieve Screenshots from Media Page",
+    "type":"bool",
+    "default":"false"
+  },
+  {
+    "id":"pullscreenscount",
+    "label":"Number of Screenshots to pull if enabled",
+    "type":"text",
+    "default":"3"
+  },
+  {
+    "id":"pullgallery",
+    "label":"Retrieve Images from Gallery Page if available",
+    "type":"bool",
+    "default":"false"
+  },
+  {
+    "id":"pullgallerycount",
+    "label":"Number of Gallery Images to pull if enabled",
+    "type":"text",
+    "default":"3"
   }
 ]
