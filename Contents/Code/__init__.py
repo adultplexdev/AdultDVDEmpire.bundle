@@ -318,7 +318,7 @@ class ADEAgent(Agent.Movies):
                     photourl = "Image Not Available"
                 else:
                   photourl = "Image Not Available"
-                Log('Added Lower List Star: %s    URL: %s' % (lowerstarname, photourl))
+                if DEBUG: Log('Added Lower List Star: %s    URL: %s' % (lowerstarname, photourl))
 
     except Exception, e:
       Log('Got an exception while parsing cast %s' %str(e))
