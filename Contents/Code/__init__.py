@@ -298,6 +298,7 @@ class ADEAgent(Agent.Movies):
             # together in a pseudo dictionary to be split back out later
             lowername = removedupestar.xpath('./text()')[0]
             lowerurl = removedupestar.xpath('./@href')[0]
+            if DEBUG: Log('Lower Star URL: %s' % lowerurl)
             lowerurlre = re.search('\d{3,8}',lowerurl)
             lowerentry = lowername.strip() + '|' + lowerurlre.group(0).strip()
             lowerlist.append(lowerentry)
@@ -305,6 +306,8 @@ class ADEAgent(Agent.Movies):
           for lowerstar in lowerlist:
             if (len(lowerstar) > 0):
               lowerstarname, lowerstarurl = lowerstar.split("|")
+              if DEBUG: Log('Lower Star Data: %s' % lowerstar)
+              if DEBUG: Log('Lower Star Name: %s' % lowerstarname)
               # There are different descriptors that will show up as a name, for now just adding them ad-hoc
               # to following statement with "and lowerstar.lower() != 'bio'"
               if (lowerstarname not in upperlist and lowerstarname.lower() != 'bio' and lowerstarname.lower() != 'interview'):
