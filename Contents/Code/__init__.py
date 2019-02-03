@@ -315,10 +315,13 @@ class ADEAgent(Agent.Movies):
                 role.name = lowerstarname
                 if len(lowerstarurl) > 1:
                   photourl = "https://imgs1cdn.adultempire.com/actors/" + lowerstarurl + ".jpg"
+                  if DEBUG: Log('Lower Star Attempt PhotoURL: %s' % photourl)
                   if self.file_exists(photourl):
                     role.photo = photourl
+                    if DEBUG: Log('File_Exists Says file exists: %s' % photourl)
                   else:
                     photourl = "Image Not Available"
+                    if DEBUG: Log('File_Exists Says file does not exist: %s' % photourl)
                 else:
                   photourl = "Image Not Available"
                 if DEBUG: Log('Added Lower List Star: %s    URL: %s' % (lowerstarname, photourl))
@@ -459,6 +462,9 @@ class ADEAgent(Agent.Movies):
     request.get_method = lambda : 'HEAD'
     try:
         response = urllib2.urlopen(request)
+        Log('Response for File Exist check: %s' % str(response.getcode()))
+        Log('URL Actually retrieved: %s' % str(response.geturl()))
+        Log('Headers retrieved from pull: %s' % str(response.info()))
         return True
     except:
         return False
