@@ -176,6 +176,8 @@ class ADEAgent(Agent.Movies):
     metadata.title = media.title
     metadata.title = re.sub(r'\ \[\d{4}-\d{2}-\d{2}\]','',metadata.title).strip()
     metadata.title = re.sub(r'\ \(\d{4}\)','',metadata.title).strip()
+    if DEBUG: Log('Title Metadata Key: [Movie Title]   Value: [%s]', metadata.title)
+
     #This strips the format type returned in the "curName += "  (VOD)" style lines above
     #You can uncomment them and this to make it work, I jsut thought it was too busy with
     #The dates listed as well, not to mention that formats are sorted by type with the score
@@ -287,6 +289,7 @@ class ADEAgent(Agent.Movies):
             role = metadata.roles.new()
             role.name = nameValue
             role.photo = imgURL
+            if DEBUG: Log('Upper Star Data: %s     %s' % (nameValue, imgURL))
 
         # Bottom List: doesn't have photo links available, so only uses to add names to the ones from the upper
         if html.xpath('//a[contains(@class,"PerformerName")][not(ancestor::small)]'):
