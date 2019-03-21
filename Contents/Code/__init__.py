@@ -4,6 +4,7 @@
 import re
 import datetime
 import random
+import urllib2
 
 # preferences
 preference = Prefs
@@ -175,6 +176,8 @@ class ADEAgent(Agent.Movies):
     metadata.title = media.title
     metadata.title = re.sub(r'\ \[\d{4}-\d{2}-\d{2}\]','',metadata.title).strip()
     metadata.title = re.sub(r'\ \(\d{4}\)','',metadata.title).strip()
+    if DEBUG: Log('Title Metadata Key: [Movie Title]   Value: [%s]', metadata.title)
+
     #This strips the format type returned in the "curName += "  (VOD)" style lines above
     #You can uncomment them and this to make it work, I jsut thought it was too busy with
     #The dates listed as well, not to mention that formats are sorted by type with the score
@@ -272,7 +275,7 @@ class ADEAgent(Agent.Movies):
         htmlcast = htmlcast.replace('<small>Director</small>', '')
 
 		# Change to high res img -- This part need to be made better.
-        htmlcast = htmlcast.replace('t.jpg', 'h.jpg')
+        htmlcast = htmlcast.replace('t.jpg', '.jpg')
         htmlcast = htmlcast.replace('<img src="https://imgs1cdn.adultempire.com/res/pm/pixel.gif" alt="" title="" class="img-responsive headshot" style="background-image:url(', '|')
         htmlcast = HTML.ElementFromString(htmlcast).text_content()
         htmlcast = htmlcast.split('|')
@@ -286,22 +289,45 @@ class ADEAgent(Agent.Movies):
             role = metadata.roles.new()
             role.name = nameValue
             role.photo = imgURL
+            if DEBUG: Log('Upper Star Data: %s     %s' % (nameValue, imgURL))
 
         # Bottom List: doesn't have photo links available, so only uses to add names to the ones from the upper
         if html.xpath('//a[contains(@class,"PerformerName")][not(ancestor::small)]'):
-          htmlcastLower = html.xpath('//a[contains(@class,"PerformerName")][not(ancestor::small)]/text()')
+          htmlcastLower = html.xpath('//a[contains(@class,"PerformerName")][not(ancestor::small)]')
           lowerlist = []
           for removedupestar in htmlcastLower:
-            lowerlist.append(removedupestar.strip())
+            # I realize there has to be a cleaner way to do this, but essentially this takes them
+            # name and bio page url, strips the star id from the url, then hooks the name and id
+            # together in a pseudo dictionary to be split back out later
+            lowername = removedupestar.xpath('./text()')[0]
+            lowerurl = removedupestar.xpath('./@href')[0]
+            if DEBUG: Log('Lower Star URL: %s' % lowerurl)
+            lowerurlre = re.search('\d{3,8}',lowerurl)
+            lowerentry = lowername.strip() + '|' + lowerurlre.group(0).strip()
+            lowerlist.append(lowerentry)
           lowerlist = list(set(lowerlist))
           for lowerstar in lowerlist:
             if (len(lowerstar) > 0):
+              lowerstarname, lowerstarurl = lowerstar.split("|")
+              if DEBUG: Log('Lower Star Data: %s' % lowerstar)
+              if DEBUG: Log('Lower Star Name: %s' % lowerstarname)
               # There are different descriptors that will show up as a name, for now just adding them ad-hoc
               # to following statement with "and lowerstar.lower() != 'bio'"
-              if (lowerstar not in upperlist and lowerstar.lower() != 'bio' and lowerstar.lower() != 'interview'):
+              if (lowerstarname not in upperlist and lowerstarname.lower() != 'bio' and lowerstarname.lower() != 'interview'):
                 role = metadata.roles.new()
-                role.name = lowerstar
-                Log('Added Lower List Star: %s' %str(lowerstar))
+                role.name = lowerstarname
+                if len(lowerstarurl) > 1:
+                  photourl = "https://imgs1cdn.adultempire.com/actors/" + lowerstarurl + ".jpg"
+                  if DEBUG: Log('Lower Star Attempt PhotoURL: %s' % photourl)
+                  if self.file_exists(photourl):
+                    role.photo = photourl
+                    if DEBUG: Log('File_Exists Says file exists: %s' % photourl)
+                  else:
+                    photourl = "Image Not Available"
+                    if DEBUG: Log('File_Exists Says file does not exist: %s' % photourl)
+                else:
+                  photourl = "Image Not Available"
+                if DEBUG: Log('Added Lower List Star: %s    URL: %s' % (lowerstarname, photourl))
 
     except Exception, e:
       Log('Got an exception while parsing cast %s' %str(e))
@@ -432,3 +458,16 @@ class ADEAgent(Agent.Movies):
     for j in range(num):
       res.append(random.randint(start, end))
     return res
+
+  #Just a function to check to see if a url (image here) exists
+  def file_exists(self, url):
+    request = urllib2.Request(url)
+    request.get_method = lambda : 'HEAD'
+    try:
+        response = urllib2.urlopen(request)
+        Log('Response for File Exist check: %s' % str(response.getcode()))
+        Log('URL Actually retrieved: %s' % str(response.geturl()))
+        Log('Headers retrieved from pull: %s' % str(response.info()))
+        return True
+    except:
+        return False
