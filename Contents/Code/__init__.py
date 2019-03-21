@@ -200,8 +200,10 @@ class ADEAgent(Agent.Movies):
 
     # Summary.
     try:
-      for summary in html.xpath('//*[@class="product-details-container"]/div/div/p'):
-        metadata.summary = summary.text_content()
+        summary = html.xpath('//div[@class="col-xs-12 text-center p-y-2 bg-lightgrey"]/div/p')[0].text_content().strip()
+        summary = re.sub('<[^<]+?>', '', summary)
+        Log('Summary Found: %s' %str(summary))
+        metadata.summary = summary
     except Exception, e:
       Log('Got an exception while parsing summary %s' %str(e))
 
@@ -262,34 +264,22 @@ class ADEAgent(Agent.Movies):
                   metadata.originally_available_at = Datetime.ParseDate(str(productionyear) + "-01-01")
                   if DEBUG: Log('Production Year earlier than release, setting date to: %s' % (str(productionyear) + "-01-01"))
 
-    # Cast - added updated by Briadin / 20190108
+    # Cast - added updated by Briadin / 20190320
     try:
       metadata.roles.clear()
-      if html.xpath('//*[contains(@class, "cast listgrid item-cast-list")]'):
-        htmlcast = HTML.StringFromElement(html.xpath('//*[contains(@class, "cast listgrid item-cast-list")]')[0])
+      if html.xpath('//div[@class="hover-popover-detail"]'):
+        htmlcast = html.xpath('//div[@class="hover-popover-detail"]/img')
 
-		# -- Terrible setup but works for now.
-        htmlcast = htmlcast.replace('\n', '|').replace('\r', '').replace('\t', '').replace(');">', 'DIVIDER')
-        htmlcast = htmlcast.replace('<span>', '').replace('</span>', '')
-        htmlcast = htmlcast.replace('<li>', '').replace('</li>', '')
-        htmlcast = htmlcast.replace('<small>Director</small>', '')
-
-		# Change to high res img -- This part need to be made better.
-        htmlcast = htmlcast.replace('t.jpg', '.jpg')
-        htmlcast = htmlcast.replace('<img src="https://imgs1cdn.adultempire.com/res/pm/pixel.gif" alt="" title="" class="img-responsive headshot" style="background-image:url(', '|')
-        htmlcast = HTML.ElementFromString(htmlcast).text_content()
-        htmlcast = htmlcast.split('|')
-        htmlcast = htmlcast[1:]
-        # upperlist is simply an array of the top list to compare the bottom list against
         upperlist = []
-        for cast in htmlcast:
-          if (len(cast) > 0):
-            imgURL, nameValue = cast.split('DIVIDER')
-            upperlist.append(nameValue.strip())
+        for htmlcastUpper in htmlcast:
+            uppername = htmlcastUpper.xpath('./@title')[0]
+            upperurl = htmlcastUpper.xpath('./@src')[0]
+            upperurl = upperurl.replace("h.jpg",".jpg")
+            if DEBUG: Log('Upper Star Data: %s     %s' % (uppername, upperurl))
+            upperlist.append(uppername)
             role = metadata.roles.new()
-            role.name = nameValue
-            role.photo = imgURL
-            if DEBUG: Log('Upper Star Data: %s     %s' % (nameValue, imgURL))
+            role.name = uppername
+            role.photo = upperurl
 
         # Bottom List: doesn't have photo links available, so only uses to add names to the ones from the upper
         if html.xpath('//a[contains(@class,"PerformerName")][not(ancestor::small)]'):
@@ -301,7 +291,6 @@ class ADEAgent(Agent.Movies):
             # together in a pseudo dictionary to be split back out later
             lowername = removedupestar.xpath('./text()')[0]
             lowerurl = removedupestar.xpath('./@href')[0]
-            if DEBUG: Log('Lower Star URL: %s' % lowerurl)
             lowerurlre = re.search('\d{3,8}',lowerurl)
             lowerentry = lowername.strip() + '|' + lowerurlre.group(0).strip()
             lowerlist.append(lowerentry)
@@ -309,8 +298,6 @@ class ADEAgent(Agent.Movies):
           for lowerstar in lowerlist:
             if (len(lowerstar) > 0):
               lowerstarname, lowerstarurl = lowerstar.split("|")
-              if DEBUG: Log('Lower Star Data: %s' % lowerstar)
-              if DEBUG: Log('Lower Star Name: %s' % lowerstarname)
               # There are different descriptors that will show up as a name, for now just adding them ad-hoc
               # to following statement with "and lowerstar.lower() != 'bio'"
               if (lowerstarname not in upperlist and lowerstarname.lower() != 'bio' and lowerstarname.lower() != 'interview'):
@@ -318,13 +305,10 @@ class ADEAgent(Agent.Movies):
                 role.name = lowerstarname
                 if len(lowerstarurl) > 1:
                   photourl = "https://imgs1cdn.adultempire.com/actors/" + lowerstarurl + ".jpg"
-                  if DEBUG: Log('Lower Star Attempt PhotoURL: %s' % photourl)
                   if self.file_exists(photourl):
                     role.photo = photourl
-                    if DEBUG: Log('File_Exists Says file exists: %s' % photourl)
                   else:
                     photourl = "Image Not Available"
-                    if DEBUG: Log('File_Exists Says file does not exist: %s' % photourl)
                 else:
                   photourl = "Image Not Available"
                 if DEBUG: Log('Added Lower List Star: %s    URL: %s' % (lowerstarname, photourl))
@@ -356,22 +340,19 @@ class ADEAgent(Agent.Movies):
     except: pass
 
     # Genres
+
     try:
+      genrelist = []
       metadata.genres.clear()
       ignoregenres = [x.lower().strip() for x in preference['ignoregenres'].split('|')]
-      if html.xpath('//*[contains(@class, "col-sm-4 spacing-bottom")]'):
-        htmlgenres = HTML.StringFromElement(html.xpath('//*[contains(@class, "col-sm-4 spacing-bottom")]')[2])
-        htmlgenres = htmlgenres.replace('\n', '|')
-        htmlgenres = htmlgenres.replace('\r', '')
-        htmlgenres = htmlgenres.replace('\t', '')
-        htmlgenres = HTML.ElementFromString(htmlgenres).text_content()
-        htmlgenres = htmlgenres.split('|')
-        htmlgenres = filter(None, htmlgenres)
-        htmlgenres = htmlgenres[1:]
-        htmlgenres = htmlgenres[:-1]
-        for gname in htmlgenres:
-          if len(gname) > 0:
-              if not gname.lower().strip() in ignoregenres: metadata.genres.add(gname)
+      if html.xpath('//ul[@class="list-unstyled m-b-2"]//a[@label="Category"]'):
+        genres = html.xpath('//ul[@class="list-unstyled m-b-2"]//a[@label="Category"]/text()')
+        for genre in genres:
+            genre = genre.strip()
+            genrelist.append(genre)
+            if not genre.lower().strip() in ignoregenres: metadata.genres.add(genre)
+        if DEBUG: Log('Found Genres: %s' % (' | '.join(genrelist)))
+
     except Exception, e:
       Log('Got an exception while parsing genres %s' %str(e))
 
@@ -465,9 +446,9 @@ class ADEAgent(Agent.Movies):
     request.get_method = lambda : 'HEAD'
     try:
         response = urllib2.urlopen(request)
-        Log('Response for File Exist check: %s' % str(response.getcode()))
-        Log('URL Actually retrieved: %s' % str(response.geturl()))
-        Log('Headers retrieved from pull: %s' % str(response.info()))
+        #Log('Response for File Exist check: %s' % str(response.getcode()))
+        #Log('URL Actually retrieved: %s' % str(response.geturl()))
+        #Log('Headers retrieved from pull: %s' % str(response.info()))
         return True
     except:
         return False
