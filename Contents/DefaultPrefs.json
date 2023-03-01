@@ -1,0 +1,70 @@
+
+[
+  {
+    "id":"debug",
+    "label":"Enable debug logging",
+    "type":"bool",
+    "default":"false"
+  },
+  {
+    "id":"dateformat",
+    "label":"Display Production Year (YYYY) instead of Release Date [YYYY-MM-DD]",
+    "type":"bool",
+    "default":"true"
+  },
+  {
+    "id":"searchtype",
+    "label":"Formats to Search (Default to all types)",
+    "type":"enum",
+    "values":["all","dvd","vod","bluray"],
+    "default":"all"
+  },
+  {
+    "id":"ignoregenres",
+    "label":"Genres/Categories to ignore, case insensitive (entries separated by | character)",
+    "type":"text",
+    "default":"Sale|4K Ultra HD"
+  },
+  {
+    "id":"goodscore",
+    "label":"Scoring value to show results over.  Results containing the exact search term will always be shown (The score is an integer value, 100 for perfect match.  98 Default)",
+    "type":"text",
+    "default":"98"
+  },
+  {
+    "id":"useproductiondate",
+    "label":"If the 'Production Year' is less than the 'Release Date Year', then use Production Year instead with Jan 1st appended for the date (YYYY-01-01)",
+    "type":"bool",
+    "default":"true"
+  },
+  {
+    "id":"pullscreens",
+    "label":"Retrieve Screenshots from Media Page",
+    "type":"bool",
+    "default":"false"
+  },
+  {
+    "id":"pullscreenscount",
+    "label":"Number of Screenshots to pull if enabled",
+    "type":"text",
+    "default":"3"
+  },
+  {
+    "id":"pullgallery",
+    "label":"Retrieve Images from Gallery Page if available",
+    "type":"bool",
+    "default":"false"
+  },
+  {
+    "id":"pullgallerycount",
+    "label":"Number of Gallery Images to pull if enabled",
+    "type":"text",
+    "default":"3"
+  },
+  {
+    "id":"studioascollection",
+    "label":"Use Studio Name as Collection Tag",
+    "type":"bool",
+    "default":"false"
+  }
+]

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>English</string>
+	<key>CFBundleExecutable</key>
+	<string>AdultDVDEmpire</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.plexapp.agents.adultdvdempire</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleVersion</key>
+	<string>1.0</string>
+	<key>PlexFrameworkVersion</key>
+	<string>2</string>
+	<key>PlexPluginClass</key>
+	<string>Agent</string>
+	<key>PlexPluginMode</key>
+	<string>AlwaysOn</string>
+	<key>PlexAgentAttributionText</key>
+	<string>
+<![CDATA[
+Adult DVD Empire Agent (v2019-01-14)
+<br /><br />
+is an agent to scrape related metadata from the great site, Adult DVD Empire.  If adult content
+is your thing, we'd highly recommend you giving them a look!
+This agent is completely unafilliated with the website in any way, as an fyi.  If you have problems
+ they definitely won't help you with it.
+]]>
+	</string>    
+</dict>
+</plist>
