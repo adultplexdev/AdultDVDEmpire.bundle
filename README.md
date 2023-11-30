@@ -1,5 +1,11 @@
 # AdultDVDEmpire.bundle
 
+WARNING!
+
+PLEX IS GATHERING ALL VIEW INFORMATION AND SHARING IT WITH YOUR FRIENDS IF NOT "OPT-OUT", PLEASE CONSIDER THIS BEFORE INSTALLING THIS PLUG-IN. YOU HAVE BEEN WARNED!
+
+WARNING!
+
 Plex metadata agent for fetching metadata for AdultDVDEmpire material.
 
 20210624 - Update to fix issues created by a Plex update.
