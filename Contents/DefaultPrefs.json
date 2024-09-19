@@ -13,7 +13,7 @@
     "default":"true"
   },
   {
-    "id":"searchtype",
+    "id":"ADEsearchtype",
     "label":"Formats to Search (Default to all types)",
     "type":"enum",
     "values":["all","dvd","vod","bluray"],

@@ -1,12 +1,7 @@
 # AdultDVDEmpire.bundle
-
-WARNING!
-
-PLEX IS GATHERING ALL VIEW INFORMATION AND SHARING IT WITH YOUR FRIENDS IF NOT "OPT-OUT", PLEASE CONSIDER THIS BEFORE INSTALLING THIS PLUG-IN. YOU HAVE BEEN WARNED!
-
-WARNING!
-
 Plex metadata agent for fetching metadata for AdultDVDEmpire material.
+
+20240919 - Update to fix issues with ADE changing their website structure (thx to adtdev20)
 
 20210624 - Update to fix issues created by a Plex update.
 
@@ -21,3 +16,7 @@ Donation:
 If you wish to make our life a little bit easier please become a Patreon and it’s also a way for you to make more updates and new plug-in’s possible. This is of course not a requirement and we still love you anyway.
 
 PATREON: Removed.
+
+WARNING!
+PLEX IS GATHERING ALL VIEW INFORMATION, PLEASE CONSIDER THIS BEFORE INSTALLING THIS PLUG-IN. YOU HAVE BEEN WARNED!
+WARNING!
