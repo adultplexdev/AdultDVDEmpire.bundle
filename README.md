@@ -2,6 +2,7 @@
 Plex metadata agent for fetching metadata for AdultDVDEmpire material.
 
 20240919 - Update to fix issues with ADE changing their website structure (thx to adtdev20)
+
 20210624 - Update to fix issues created by a Plex update.
 
 Option to make the studio name a collection tag, off by default
