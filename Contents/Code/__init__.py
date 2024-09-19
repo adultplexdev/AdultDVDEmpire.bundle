@@ -1,5 +1,5 @@
 # AdultDVDEmpire
-# Update: 8 January 2019
+# Update: 19 September 2024
 # Description: New updates from a lot of diffrent forks and people. Please read README.md for more details.
 import re
 import datetime
@@ -16,15 +16,15 @@ else:
 
 studioascollection = preference['studioascollection']
 
-if len(preference['searchtype']) and preference['searchtype'] != 'all':
-  searchtype = preference['searchtype']
+if len(preference['ADEsearchtype']) and preference['ADEsearchtype'] != 'all':
+  ADEsearchtype = preference['ADEsearchtype']
 else:
-  searchtype = 'allsearch'
-if DEBUG:Log('Search Type: %s' % str(preference['searchtype']))
+  ADEsearchtype = 'allsearch'
+if DEBUG:Log('Search Type: %s' % str(preference['ADEsearchtype']))
 
 # URLS
-ADE_BASEURL = 'http://www.adultdvdempire.com'
-ADE_SEARCH_MOVIES = ADE_BASEURL + '/' + searchtype + '/search?view=list&q=%s'
+ADE_BASEURL = 'https://www.adultdvdempire.com'
+ADE_SEARCH_MOVIES = ADE_BASEURL + '/' + ADEsearchtype + '/search?view=list&q=%s'
 ADE_MOVIE_INFO = ADE_BASEURL + '/%s/'
 
 scoreprefs = int(preference['goodscore'].strip())
@@ -63,11 +63,15 @@ class ADEAgent(Agent.Movies):
     if DEBUG: Log('Search Query: %s' % str(ADE_SEARCH_MOVIES % query))
     # Finds the entire media enclosure <DIV> elements then steps through them
     for movie in HTML.ElementFromURL(ADE_SEARCH_MOVIES % query).xpath('//div[contains(@class,"row list-view-item")]'):
+      # Uncomment below to get all the div tag results for the variable movie
+      if DEBUG: Log('Search Result for variable movie: %s' % str(title))
       # curName = The text in the 'title' p
       try:
         moviehref = movie.xpath('.//a[contains(@label,"Title")]')[0]
         curName = moviehref.text_content().strip()
-        #if DEBUG: Log('Initial Result Name found: %s' % str(curName))
+        # Uncomment below to get the debug logging for the initial name result
+        if DEBUG: Log('Initial Result curName found: %s' % str(curName))
+        
         if curName.count(', The'):
           curName = 'The ' + curName.replace(', The','',1)
         yearName = curName
@@ -87,11 +91,14 @@ class ADEAgent(Agent.Movies):
             yearName = curName
             relName += " [" + moviedate +"]"
         except: pass
-
+        if DEBUG: Log('Initial Result moviedate found: %s' % str(moviedate))
         # Parse out the "Production Year" and use that for identification since release date is usually different
         # between formats.  Also the Try: block is because not all releases have Production Year associated
         try:
-          curYear = movie.xpath('.//a[@label="Title"]/following-sibling::small')[0].text_content().strip()
+          # Existing Production year code
+          # curYear = movie.xpath('.//a[@label="Title"]/following-sibling::small')[0].text_content().strip()
+          # New Production Year Code
+          curYear = movie.xpath('.//a[contains(@aria-label, "View")]/following-sibling::text()[1]')[0].strip()
           if len(curYear):
             if not re.match(r"\(\d\d\d\d\)",curYear):
               curYear = None
@@ -99,34 +106,39 @@ class ADEAgent(Agent.Movies):
               yearName += " " + curYear
         except: pass
 
-        if preference['searchtype'] == 'all':
+        if preference['ADEsearchtype'] == 'all':
+          if DEBUG: Log('Checking the category for VOD or DVD')
           #If the category is VOD then lower the score by half to place it lower than DVD results
           #movie2 = movie.xpath('//small[contains(text(),"DVD-Video") or contains(text(),"Video On Demand") or contains(text(),"Blu-ray")]')
-          movie2 = movie.xpath('.//small[contains(text(),"DVD-Video")]')
+          movie2 = movie.xpath('.//a[@title="DVD" or @title="dvd"]')
+          if DEBUG: Log('Current title is DVD')
           if len(movie2) > 0:
             mediaformat = "dvd"
 
-          movie2 = movie.xpath('.//small[contains(text(),"Blu-ray")]')
-          if len(movie2) > 0:
-            mediaformat = "br"
+          # 2024-09-19 ADE dont use Blu-ray as its own category for the moment.
+          #movie2 = movie.xpath('.//small[contains(text(),"Blu-ray")]')
+          #if len(movie2) > 0:
+          #  mediaformat = "br"
 
-          movie2 = movie.xpath('.//small[contains(text(),"Video On Demand")]')
+          movie2 = movie.xpath('.//a[@title="VOD" or @title="vod"]')
+          if DEBUG: Log('Current title is VOD')
           if len(movie2) > 0:
             mediaformat = "vod"
 
         else:
             mediaformat = 'NA'
-
+            
+        if DEBUG: Log('Initial Result mediaformat found: %s' % str(mediaformat))
         # This is pretty kludgey, but couldn't wrap my mind around Python's handling of associative arrays
         # Therefore I just write the row into a delimited string and then process
         # Essentially this is to make sure that you only have VOD results in the list if there's no dvd
         # or Blu-Ray entry available
         # It builds up the resultarray[] array, which is then stepped through in the next section
-        # This is run on each found result
+        # This is run on each found result 
         resultrow = yearName + "<DIVIDER>" + curID + "<DIVIDER>" + mediaformat + "<DIVIDER>" + str(score) + "<DIVIDER>" + relName
         if DEBUG: Log('Result to process for appending: %s' % str(resultrow))
 
-        if preference['searchtype'] == 'all':
+        if preference['ADEsearchtype'] == 'all':
           resulttemparray = []
           resultpointer = None
           for resulttempentry in resultarray:
@@ -195,16 +207,19 @@ class ADEAgent(Agent.Movies):
       thumb = HTTP.Request(thumbUrl)
       posterUrl = img.get('src')
       metadata.posters[posterUrl] = Proxy.Preview(thumb)
-    except: pass
+    except Exception, e:
+      Log('Got an exception while downloading posters %s' %str(e))
 
     # Tagline
-    try: metadata.tagline = html.xpath('//p[@class="Tagline"]')[0].text_content().strip()
+    #try: metadata.tagline = html.xpath('//p[@class="Tagline"]')[0].text_content().strip()
+    try: metadata.tagline = html.xpath('//h2[contains(@class, "test")]/text()')[0].strip()
     except: pass
 
     # Summary.
     try:
-        summary = html.xpath('//div[@class="col-xs-12 text-center p-y-2 bg-lightgrey"]/div/p')[0].text_content().strip()
-        summary = re.sub('<[^<]+?>', '', summary)
+        #summary = html.xpath('//div[@class="col-xs-12 text-center p-y-2 bg-lightgrey"]/div/p')[0].text_content().strip()
+        summary = html.xpath('//div[@class="synopsis-content"]/p')[0].text_content().strip()
+        #summary = re.sub('<[^<]+?>', '', summary)
         Log('Summary Found: %s' %str(summary))
         metadata.summary = summary
     except Exception, e:
