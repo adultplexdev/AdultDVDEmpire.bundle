@@ -39,8 +39,9 @@ INITIAL_SCORE = 100
 titleFormats = r'\(DVD\)|\(Blu-Ray\)|\(BR\)|\(VOD\)'
 
 def Start():
-  HTTP.CacheTime = CACHE_1MINUTE
-  HTTP.SetHeader('User-agent', 'Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.2; Trident/4.0; SLCC2; .NET CLR 2.0.50727; .NET CLR 3.5.30729; .NET CLR 3.0.30729; Media Center PC 6.0)')
+  HTTP.CacheTime = 0
+  HTTP.Headers['User-agent'] = 'Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.2; Trident/4.0; SLCC2; .NET CLR 2.0.50727; .NET CLR 3.5.30729; .NET CLR 3.0.30729; Media Center PC 6.0)'
+  HTTP.Headers['Cookie'] = 'ageConfirmed=true'
 
 def ValidatePrefs():
   pass
