@@ -121,7 +121,7 @@ class ADEAgent(Agent.Movies):
           #if len(movie2) > 0:
           #  mediaformat = "br"
 
-          movie2 = movie.xpath('.//a[@title="VOD" or @title="vod" or @title="Video On Demand"]')
+          movie2 = movie.xpath('.//a[@title="VOD" or @title="vod"]')
           if DEBUG: Log('Current title is VOD')
           if len(movie2) > 0:
             mediaformat = "vod"
