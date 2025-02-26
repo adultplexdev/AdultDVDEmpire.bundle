@@ -121,10 +121,14 @@ class ADEAgent(Agent.Movies):
           #if len(movie2) > 0:
           #  mediaformat = "br"
 
-          movie2 = movie.xpath('.//a[@title="VOD" or @title="vod"]')
+          movie2 = movie.xpath('.//a[@title="VOD" or @title="vod" or @title="Video On Demand"]')
           if DEBUG: Log('Current title is VOD')
           if len(movie2) > 0:
             mediaformat = "vod"
+          else:
+            # ADE Has made some div tag changes where they have the Video on Demand, but they don't have an "Available: " div tag set for some reason
+            if DEBUG: Log('No Category Found assuming VOD')
+            mediaformat = 'vod'
 
         else:
             mediaformat = 'NA'
