@@ -1,6 +1,8 @@
 # AdultDVDEmpire.bundle
 Plex metadata agent for fetching metadata for AdultDVDEmpire material.
 
+20250713 - Fixed catagory lookup and some default settings to give move results.
+
 20241217 - Fixed new ageConfirmation requirment cookie.
 
 20240919 - Update to fix issues with ADE changing their website structure (thx to adtdev20)
