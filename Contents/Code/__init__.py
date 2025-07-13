@@ -1,5 +1,5 @@
 # AdultDVDEmpire
-# Update: 19 September 2024
+# Update: 13 July 2025
 # Description: New updates from a lot of diffrent forks and people. Please read README.md for more details.
 import re
 import datetime
@@ -31,7 +31,7 @@ scoreprefs = int(preference['goodscore'].strip())
 if scoreprefs > 1:
     GOOD_SCORE = scoreprefs
 else:
-    GOOD_SCORE = 98
+    GOOD_SCORE = 96
 if DEBUG:Log('Result Score: %i' % GOOD_SCORE)
 
 INITIAL_SCORE = 100
@@ -65,6 +65,7 @@ class ADEAgent(Agent.Movies):
     # Finds the entire media enclosure <DIV> elements then steps through them
     for movie in HTML.ElementFromURL(ADE_SEARCH_MOVIES % query).xpath('//div[contains(@class,"row list-view-item")]'):
       # Uncomment below to get all the div tag results for the variable movie
+      if DEBUG: Log('--------- RESULT BEGIN ---------')
       if DEBUG: Log('Search Result for variable movie: %s' % str(title))
       # curName = The text in the 'title' p
       try:
@@ -77,11 +78,14 @@ class ADEAgent(Agent.Movies):
           curName = 'The ' + curName.replace(', The','',1)
         yearName = curName
         relName = curName
+        if DEBUG: Log('Initial Result relName found: %s' % str(relName))
 
         # curID = the ID portion of the href in 'movie'
         curID = moviehref.get('href').split('/',2)[1]
+        if DEBUG: Log('Initial Result curID found: %s' % str(curID))
         score = INITIAL_SCORE - Util.LevenshteinDistance(title.lower(), curName.lower())
-
+        if DEBUG: Log('Initial Result score found: %s' % str(score))
+        
         # In the list view the release date is available.  Let's get that and append it to the title
         # This has been superseded by Production Year instead, but leaving the code in in case we want
         # to display that later instead
@@ -100,18 +104,22 @@ class ADEAgent(Agent.Movies):
           # curYear = movie.xpath('.//a[@label="Title"]/following-sibling::small')[0].text_content().strip()
           # New Production Year Code
           curYear = movie.xpath('.//a[contains(@aria-label, "View")]/following-sibling::text()[1]')[0].strip()
+          if DEBUG: Log('Initial Result curYear found: %s' % str(curYear))
           if len(curYear):
             if not re.match(r"\(\d\d\d\d\)",curYear):
               curYear = None
             else:
               yearName += " " + curYear
         except: pass
+        if DEBUG: Log('Initial Result yearName found: %s' % str(yearName))
 
         if preference['ADEsearchtype'] == 'all':
           if DEBUG: Log('Checking the category for VOD or DVD')
           #If the category is VOD then lower the score by half to place it lower than DVD results
           #movie2 = movie.xpath('//small[contains(text(),"DVD-Video") or contains(text(),"Video On Demand") or contains(text(),"Blu-ray")]')
-          movie2 = movie.xpath('.//a[@title="DVD" or @title="dvd"]')
+          #movie2 = movie.xpath('.//a[@title="DVD" or @title="dvd" or @title=" DVD-Video "]')
+          movie2 = movie.xpath('.//div[contains(@class,"list-view-item-controls_content-type m-b-1")="DVD-Video"]')
+          if DEBUG: Log('Initial Result movie2 found: %s' % str(movie2))
           if DEBUG: Log('Current title is DVD')
           if len(movie2) > 0:
             mediaformat = "dvd"
@@ -121,7 +129,8 @@ class ADEAgent(Agent.Movies):
           #if len(movie2) > 0:
           #  mediaformat = "br"
 
-          movie2 = movie.xpath('.//a[@title="VOD" or @title="vod"]')
+          #movie2 = movie.xpath('.//a[@title="VOD" or @title="vod" or @title="Video On Demand"]')
+          movie2 = movie.xpath('.//div[contains(@class,"list-view-item-controls_content-type m-b-1")="Video On Demand"]')
           if DEBUG: Log('Current title is VOD')
           if len(movie2) > 0:
             mediaformat = "vod"
@@ -156,6 +165,7 @@ class ADEAgent(Agent.Movies):
         if resultpointer is None:
           resultarray.append(resultrow)
       except: pass
+      if DEBUG: Log('--------- RESULT END ---------')
 
     # Just need to step through the returned resultarray[], split out the segments and pop them onto the stack
     # IF: 1) the returned media name contains the exact search term
@@ -182,8 +192,9 @@ class ADEAgent(Agent.Movies):
         results.Append(MetadataSearchResult(id = entryID, name = moviename, score = entryScore, lang = lang))
       elif (entryScore >= GOOD_SCORE):
         results.Append(MetadataSearchResult(id = entryID, name = moviename, score = entryScore, lang = lang))
-
+    
     results.Sort('score', descending=True)
+    
 
   def update(self, metadata, media, lang):
     if DEBUG: Log('Beginning Update...')
