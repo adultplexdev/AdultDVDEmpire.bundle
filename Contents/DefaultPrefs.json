@@ -23,13 +23,13 @@
     "id":"ignoregenres",
     "label":"Genres/Categories to ignore, case insensitive (entries separated by | character)",
     "type":"text",
-    "default":"Sale|4K Ultra HD"
+    "default":""
   },
   {
     "id":"goodscore",
-    "label":"Scoring value to show results over.  Results containing the exact search term will always be shown (The score is an integer value, 100 for perfect match.  98 Default)",
+    "label":"Scoring value to show results over.  Results containing the exact search term will always be shown (The score is an integer value, 100 for perfect match. 96 Default)",
     "type":"text",
-    "default":"98"
+    "default":"96"
   },
   {
     "id":"useproductiondate",
