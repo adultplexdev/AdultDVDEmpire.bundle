@@ -1,513 +1,536 @@
-# AdultDVDEmpire
-# Update: 13 July 2025
-# Description: New updates from a lot of diffrent forks and people. Please read README.md for more details.
+# AdultDVDEmpire Plex Metadata Agent
+# Update: 16 July 2025
+# Description: A Plex metadata agent to scrape movie data from Adult DVD Empire.
+#              Supports searching and updating metadata with preferences for debugging,
+#              and media format prioritization. See README.md for details.
+
 import re
 import datetime
 import random
-import urllib2
 
-# preferences
-preference = Prefs
-DEBUG = preference['debug']
-if DEBUG:
-  Log('Agent debug logging is enabled!')
-else:
-  Log('Agent debug logging is disabled!')
+# Constants for URLs and configuration
+BASE_URL                = 'https://www.adultdvdempire.com'
+SEARCH_URL_TEMPLATE     = BASE_URL + '/allsearch/search?view=list&q=%s'
+MOVIE_INFO_URL          = BASE_URL + '/%s/'
+INITIAL_SCORE           = 100
+TITLE_FORMATS           = r'\(DVD\)|\(Blu-Ray\)|\(BR\)|\(VOD\)'
+USER_AGENT              = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36')
+COOKIE_AGE_CONFIRMED    = 'ageConfirmed=true'
+HTTP_TIMEOUT            = 10
+ACTOR_ID_REGEX          = r'\d{3,8}'
+MOVIE_ID_REGEX          = r'/(\d+)/'
+PRODUCTION_YEAR_REGEX   = r'\(\d{4}\)'
+EXCLUDED_CAST_TERMS     = ['bio', 'interview']
+MAX_IMAGE_COUNT         = 50
 
-studioascollection = preference['studioascollection']
+# Constants for media format prioritization
+MEDIA_FORMAT_PRIORITIES = {'dvd': 0,'vod': 1,'NA': 2}
 
-if len(preference['ADEsearchtype']) and preference['ADEsearchtype'] != 'all':
-  ADEsearchtype = preference['ADEsearchtype']
-else:
-  ADEsearchtype = 'allsearch'
-if DEBUG:Log('Search Type: %s' % str(preference['ADEsearchtype']))
+# Constants for XPath selectors
+SEARCH_RESULTS_XPATHS   = ['//div[contains(@class,"row list-view-item")]','//div[contains(@class,"list-view-item")]','//div[contains(@class,"product-card")]']
+TITLE_XPATHS            = ['.//a[contains(@label,"Title")]','.//a[@href and contains(@class,"title")]']
+RELEASE_DATE_XPATHS     = ['.//small[contains(text(),"released")]/following-sibling::text()[1]','.//span[contains(@class,"release-date")]/text()']
+PRODUCTION_YEAR_XPATHS  = ['.//a[contains(@aria-label, "View")]/following-sibling::text()[1]','.//span[contains(@class,"production-year")]/text()']
+MEDIA_FORMAT_DVD_XPATHS = ['.//div[contains(@class,"list-view-item-controls_content-type") and contains(text(),"DVD")]','.//span[contains(@class,"format") and contains(text(),"DVD")]']
+MEDIA_FORMAT_VOD_XPATHS = ['.//div[contains(@class,"list-view-item-controls_content-type") and contains(text(),"Video On Demand")]','.//span[contains(@class,"format") and contains(text(),"VOD")]']
+PRODUCT_INFO_XPATHS     = ['//ul[@class="list-unstyled m-b-2"]']
 
-# URLS
-ADE_BASEURL = 'https://www.adultdvdempire.com'
-ADE_SEARCH_MOVIES = ADE_BASEURL + '/' + ADEsearchtype + '/search?view=list&q=%s'
-ADE_MOVIE_INFO = ADE_BASEURL + '/%s/'
-
-scoreprefs = int(preference['goodscore'].strip())
-if scoreprefs > 1:
-    GOOD_SCORE = scoreprefs
-else:
-    GOOD_SCORE = 96
-if DEBUG:Log('Result Score: %i' % GOOD_SCORE)
-
-INITIAL_SCORE = 100
-
-titleFormats = r'\(DVD\)|\(Blu-Ray\)|\(BR\)|\(VOD\)'
+POSTER_XPATH            = '//*[@id="front-cover"]/img'
+TAGLINE_XPATH           = '//h2[contains(@class, "test")]/text()'
+SUMMARY_XPATH           = '//div[@class="synopsis-content"]/p'
+CAST_UPPER_XPATH        = '//div[@class="hover-popover-detail"]/img'
+CAST_LOWER_XPATH        = '//a[contains(@label, "Performers - detail")]'
+DIRECTOR_XPATH          = '//div[contains(@class, "movie-page__content-tags__directors")]//a/text()'
+SERIES_XPATH            = '//a[@label="Series"]/text()'
+GENRES_XPATH            = '//ul[@class="list-unstyled m-b-2"]//a[@label="Category"]/text()'
+RATING_XPATH            = '//span[@class="rating-stars-avg"]/text()'
+SCREENSHOTS_XPATH       = '//a[contains(@rel, "scenescreenshots")]'
+GALLERY_XPATH           = '//div[@class="user-action"]/a[contains(@class, "gallery")]'
+GALLERY_IMAGES_XPATH    = '//div/a[contains(@class, "thumb fancy")]'
 
 def Start():
-  HTTP.CacheTime = 0
-  HTTP.Headers['User-agent'] = 'Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.2; Trident/4.0; SLCC2; .NET CLR 2.0.50727; .NET CLR 3.5.30729; .NET CLR 3.0.30729; Media Center PC 6.0)'
-  HTTP.Headers['Cookie'] = 'ageConfirmed=true'
+    HTTP.ClearCache()
+    HTTP.Headers['User-agent'] = USER_AGENT
+    HTTP.Headers['Cookie'] = COOKIE_AGE_CONFIRMED
 
 def ValidatePrefs():
-  pass
+    pass
 
 class ADEAgent(Agent.Movies):
-  name = 'Adult DVD Empire'
-  languages = [Locale.Language.English]
-  primary_provider = True
-  accepts_from = ['com.plexapp.agents.localmedia']
+    name = 'Adult DVD Empire'
+    languages = [Locale.Language.English]
+    primary_provider = True
+    accepts_from = ['com.plexapp.agents.localmedia']
 
-  def search(self, results, media, lang):
-    title = media.name
-    if media.primary_metadata is not None:
-      title = media.primary_metadata.title
-
-    query = String.URLEncode(String.StripDiacritics(title.replace('-','')))
-
-    # resultarray[] is used to filter out duplicate search results
-    resultarray=[]
-    if DEBUG: Log('Search Query: %s' % str(ADE_SEARCH_MOVIES % query))
-    # Finds the entire media enclosure <DIV> elements then steps through them
-    for movie in HTML.ElementFromURL(ADE_SEARCH_MOVIES % query).xpath('//div[contains(@class,"row list-view-item")]'):
-      # Uncomment below to get all the div tag results for the variable movie
-      if DEBUG: Log('--------- RESULT BEGIN ---------')
-      if DEBUG: Log('Search Result for variable movie: %s' % str(title))
-      # curName = The text in the 'title' p
-      try:
-        moviehref = movie.xpath('.//a[contains(@label,"Title")]')[0]
-        curName = moviehref.text_content().strip()
-        # Uncomment below to get the debug logging for the initial name result
-        if DEBUG: Log('Initial Result curName found: %s' % str(curName))
-        
-        if curName.count(', The'):
-          curName = 'The ' + curName.replace(', The','',1)
-        yearName = curName
-        relName = curName
-        if DEBUG: Log('Initial Result relName found: %s' % str(relName))
-
-        # curID = the ID portion of the href in 'movie'
-        curID = moviehref.get('href').split('/',2)[1]
-        if DEBUG: Log('Initial Result curID found: %s' % str(curID))
-        score = INITIAL_SCORE - Util.LevenshteinDistance(title.lower(), curName.lower())
-        if DEBUG: Log('Initial Result score found: %s' % str(score))
-        
-        # In the list view the release date is available.  Let's get that and append it to the title
-        # This has been superseded by Production Year instead, but leaving the code in in case we want
-        # to display that later instead
+    def file_exists(self, url):
+        debug = Prefs['debug']
         try:
-          moviedate = movie.xpath('.//small[contains(text(),"released")]/following-sibling::text()[1]')[0].strip()
-          if len(moviedate) > 0:
-            moviedate = datetime.datetime.strptime(moviedate, "%m/%d/%Y").strftime("%Y-%m-%d")
-            yearName = curName
-            relName += " [" + moviedate +"]"
-        except: pass
-        if DEBUG: Log('Initial Result moviedate found: %s' % str(moviedate))
-        # Parse out the "Production Year" and use that for identification since release date is usually different
-        # between formats.  Also the Try: block is because not all releases have Production Year associated
+            HTTP.Request(url, method='HEAD', timeout=HTTP_TIMEOUT)
+            if debug: Log('URL exists: %s' % url)
+            return True
+        except Exception as e:
+            if debug: Log('URL check failed: %s' % e)
+            return False
+
+    def clean_title(self, title):
+        debug = Prefs['debug']
+        title = re.sub(TITLE_FORMATS, '', title).strip()
+        title = re.sub(r'\ \[\d{4}-\d{2}-\d{2}\]', '', title).strip()
+        title = re.sub(r'\ \(\d{4}\)', '', title).strip()
+        if debug: Log('Title cleaned: %s' % title)
+        return title
+
+    def normalize_for_scoring(self, title):
+        title = title.lower()
+        title = re.sub(r'\s*(vol\.?|#)\s*(\d+)$', r' \2', title)
+        return title
+
+    def parse_movie_result(self, movie_element, search_title):
+        debug = Prefs['debug']
+        dateformat = Prefs['dateformat']
         try:
-          # Existing Production year code
-          # curYear = movie.xpath('.//a[@label="Title"]/following-sibling::small')[0].text_content().strip()
-          # New Production Year Code
-          curYear = movie.xpath('.//a[contains(@aria-label, "View")]/following-sibling::text()[1]')[0].strip()
-          if DEBUG: Log('Initial Result curYear found: %s' % str(curYear))
-          if len(curYear):
-            if not re.match(r"\(\d\d\d\d\)",curYear):
-              curYear = None
-            else:
-              yearName += " " + curYear
-        except: pass
-        if DEBUG: Log('Initial Result yearName found: %s' % str(yearName))
-
-        if preference['ADEsearchtype'] == 'all':
-          if DEBUG: Log('Checking the category for VOD or DVD')
-          #If the category is VOD then lower the score by half to place it lower than DVD results
-          #movie2 = movie.xpath('//small[contains(text(),"DVD-Video") or contains(text(),"Video On Demand") or contains(text(),"Blu-ray")]')
-          #movie2 = movie.xpath('.//a[@title="DVD" or @title="dvd" or @title=" DVD-Video "]')
-          movie2 = movie.xpath('.//div[contains(@class,"list-view-item-controls_content-type m-b-1")="DVD-Video"]')
-          if DEBUG: Log('Initial Result movie2 found: %s' % str(movie2))
-          if DEBUG: Log('Current title is DVD')
-          if len(movie2) > 0:
-            mediaformat = "dvd"
-
-          # 2024-09-19 ADE dont use Blu-ray as its own category for the moment.
-          #movie2 = movie.xpath('.//small[contains(text(),"Blu-ray")]')
-          #if len(movie2) > 0:
-          #  mediaformat = "br"
-
-          #movie2 = movie.xpath('.//a[@title="VOD" or @title="vod" or @title="Video On Demand"]')
-          movie2 = movie.xpath('.//div[contains(@class,"list-view-item-controls_content-type m-b-1")="Video On Demand"]')
-          if DEBUG: Log('Current title is VOD')
-          if len(movie2) > 0:
-            mediaformat = "vod"
-
-        else:
-            mediaformat = 'NA'
+            # Extract movie title and URL
+            title_element = None
+            movie_url = None
+            for xpath in TITLE_XPATHS:
+                try:
+                    elements = movie_element.xpath(xpath)
+                    if elements:
+                        title_element = elements[0]
+                        href = title_element.get('href')
+                        if href and '/' in href:
+                            movie_url = href
+                            break
+                        title_element = None
+                except Exception:
+                    title_element = None
             
-        if DEBUG: Log('Initial Result mediaformat found: %s' % str(mediaformat))
-        # This is pretty kludgey, but couldn't wrap my mind around Python's handling of associative arrays
-        # Therefore I just write the row into a delimited string and then process
-        # Essentially this is to make sure that you only have VOD results in the list if there's no dvd
-        # or Blu-Ray entry available
-        # It builds up the resultarray[] array, which is then stepped through in the next section
-        # This is run on each found result 
-        resultrow = yearName + "<DIVIDER>" + curID + "<DIVIDER>" + mediaformat + "<DIVIDER>" + str(score) + "<DIVIDER>" + relName
-        if DEBUG: Log('Result to process for appending: %s' % str(resultrow))
-
-        if preference['ADEsearchtype'] == 'all':
-          resulttemparray = []
-          resultpointer = None
-          for resulttempentry in resultarray:
-            resultname, resultid, resultformat, resultscore, resultrelname = resulttempentry.split("<DIVIDER>")
-
-            # The following lines remove less valuable data going forward in the list
-            if (((mediaformat == 'vod' and (resultformat == 'dvd' or resultformat == 'br')) or (mediaformat == 'br' and resultformat == 'dvd')) and resultname == yearName):
-              resultpointer = 1 #1 indicates that we already have a better result, don't write
-            # The following lines remove previously entered less valuable data
-            if not (((resultformat == 'vod' and (mediaformat == 'dvd' or mediaformat == 'br')) or (resultformat == 'br' and mediaformat == 'dvd')) and resultname == yearName):
-              resulttemparray.append(resulttempentry)
-          resultarray = resulttemparray
-
-        if resultpointer is None:
-          resultarray.append(resultrow)
-      except: pass
-      if DEBUG: Log('--------- RESULT END ---------')
-
-    # Just need to step through the returned resultarray[], split out the segments and pop them onto the stack
-    # IF: 1) the returned media name contains the exact search term
-    # or: 2) if the resulting score is higher than GOOD_SCORE (93 for me) on a Levenshtein Distance calculation
-    for entry in resultarray:
-      entryYearName, entryID, entryFormat, entryScore, entryRelName = entry.split("<DIVIDER>")
-      if preference['dateformat']:
-        moviename = entryYearName
-        if (not re.search('\(\d{4}\)', entryYearName)) and (re.search('\[\d{4}-\d{2}-\d{2}\]', entryRelName)):
-          moviename = entryRelName
-          if DEBUG: Log('No Production Year Found, RelaseDate Movie returned: %s' % str(moviename))
-        else:
-          if DEBUG: Log('Prod Year Movie returned: %s' % str(moviename))
-      else:
-        moviename = entryRelName
-        if (re.search('\(\d{4}\)', entryYearName)) and (not re.search('\[\d{4}-\d{2}-\d{2}\]', entryRelName)):
-          moviename = entryYearName
-          if DEBUG: Log('No Release Date Found, Year Movie returned: %s' % str(moviename))
-        else:
-          if DEBUG: Log('ReleaseDate Movie returned: %s' % str(moviename))
-
-      entryScore = int(entryScore)
-      if moviename.lower().count(title.lower()):
-        results.Append(MetadataSearchResult(id = entryID, name = moviename, score = entryScore, lang = lang))
-      elif (entryScore >= GOOD_SCORE):
-        results.Append(MetadataSearchResult(id = entryID, name = moviename, score = entryScore, lang = lang))
-    
-    results.Sort('score', descending=True)
-    
-
-  def update(self, metadata, media, lang):
-    if DEBUG: Log('Beginning Update...')
-    html = HTML.ElementFromURL(ADE_MOVIE_INFO % metadata.id)
-    metadata.title = media.title
-    metadata.title = re.sub(r'\ \[\d{4}-\d{2}-\d{2}\]','',metadata.title).strip()
-    metadata.title = re.sub(r'\ \(\d{4}\)','',metadata.title).strip()
-    if DEBUG: Log('Title Metadata Key: [Movie Title]   Value: [%s]', metadata.title)
-
-    #This strips the format type returned in the "curName += "  (VOD)" style lines above
-    #You can uncomment them and this to make it work, I jsut thought it was too busy with
-    #The dates listed as well, not to mention that formats are sorted by type with the score
-    #DVD = 91-100, Blu-Ray = 71-80, VOD = 31-40
-    #metadata.title = re.sub(titleFormats,'',metadata.title).strip()
-
-    # Thumb and Poster
-    try:
-      if DEBUG: Log('Looking for thumb and poster')
-      img = html.xpath('//*[@id="front-cover"]/img')[0]
-      thumbUrl = img.get('src')
-
-      thumb = HTTP.Request(thumbUrl)
-      posterUrl = img.get('src')
-      metadata.posters[posterUrl] = Proxy.Preview(thumb)
-    except Exception, e:
-      Log('Got an exception while downloading posters %s' %str(e))
-
-    # Tagline
-    #try: metadata.tagline = html.xpath('//p[@class="Tagline"]')[0].text_content().strip()
-    try: metadata.tagline = html.xpath('//h2[contains(@class, "test")]/text()')[0].strip()
-    except: pass
-
-    # Summary.
-    try:
-        #summary = html.xpath('//div[@class="col-xs-12 text-center p-y-2 bg-lightgrey"]/div/p')[0].text_content().strip()
-        summary = html.xpath('//div[@class="synopsis-content"]/p')[0].text_content().strip()
-        #summary = re.sub('<[^<]+?>', '', summary)
-        Log('Summary Found: %s' %str(summary))
-        metadata.summary = summary
-    except Exception, e:
-      Log('Got an exception while parsing summary %s' %str(e))
-
-    # Product info div
-    data = {}
-
-    # Match diffrent code, some titles are missing parts -- Still fails and needs to be refined.
-    if DEBUG: Log('Detecting Product info...')
-    if DEBUG: Log('Trying xpath 1...')
-    if html.xpath('//*[@id="content"]/div[2]/div[3]/div/div[1]/ul'):
-      productinfo = HTML.StringFromElement(html.xpath('//*[@id="content"]/div[2]/div[3]/div/div[1]/ul')[0])
-      if DEBUG: Log('Match on xpath 1...')
-    if DEBUG: Log('Trying xpath 2...')
-    if html.xpath('//*[@id="content"]/div[2]/div[4]/div/div[1]/ul'):
-      productinfo = HTML.StringFromElement(html.xpath('//*[@id="content"]/div[2]/div[4]/div/div[1]/ul')[0])
-      if DEBUG: Log('Match on xpath 2...')
-    if DEBUG: Log('Trying xpath 3...')
-    if html.xpath('//*[@id="content"]/div[2]/div[2]/div/div[1]/ul'):
-      productinfo = HTML.StringFromElement(html.xpath('//*[@id="content"]/div[2]/div[2]/div/div[1]/ul')[0])
-      if DEBUG: Log('Match on xpath 3...')
-    if DEBUG: Log('Trying xpath 4...')
-    if html.xpath('//*[@id="content"]/div[3]/div[3]/div/div[1]/ul'):
-      productinfo = HTML.StringFromElement(html.xpath('//*[@id="content"]/div[3]/div[3]/div/div[1]/ul')[0])
-      if DEBUG: Log('Match on xpath 4...')
-    if DEBUG: Log('Trying xpath 5...')
-    if html.xpath('//*[@id="content"]/div[3]/div[4]/div/div[1]/ul'):
-      productinfo = HTML.StringFromElement(html.xpath('//*[@id="content"]/div[3]/div[4]/div/div[1]/ul')[0])
-      if DEBUG: Log('Match on xpath 5...')
-    if DEBUG: Log('Trying NEW xpath 6...')
-    if html.xpath('//ul[@class="list-unstyled m-b-2"]'):
-      productinfo = HTML.StringFromElement(html.xpath('//ul[@class="list-unstyled m-b-2"]/li')[0])
-      if DEBUG: Log('Match on xpath 6...')
-
-    productinfo = productinfo.replace('<small>', '|')
-    productinfo = productinfo.replace('</small>', '')
-    productinfo = productinfo.replace('<li>', '').replace('</li>', '')
-    productinfo = productinfo.replace('Features', '|')
-    #productinfo = re.sub('Features *', '', productinfo, flags=re.M)
-    productinfo = HTML.ElementFromString(productinfo).text_content()
-    #if DEBUG: Log ('text_content: %s', productinfo)
-    for div in productinfo.split('|'):
-      if ':' in div:
-        name, value = div.split(':')
-        data[name.strip()] = value.strip()
-        if DEBUG: Log('Title Metadata Key: [%s]   Value: [%s]', name.strip(), value.strip())
-        if name.strip() == "Studio": break
-
-    if DEBUG: Log('Parsing of product info complete...')
-    # Rating
-    if data.has_key('Rating'):
-      if DEBUG: Log('Rating Present...')
-      metadata.content_rating = data['Rating']
-
-    # Studio
-    if data.has_key('Studio'):
-      if DEBUG: Log('Studio Present...')
-      metadata.studio = data['Studio']
-      studio = data['Studio']
-
-    # Release
-    if data.has_key('Released'):
-      if DEBUG: Log('Release Present...')
-      try:
-        metadata.originally_available_at = Datetime.ParseDate(data['Released']).date()
-        metadata.year = metadata.originally_available_at.year
-      except: pass
-
-    # Production Year
-    # If the user preference is set, then we want to replace the 'Release Date' with a created date
-    # based off of the Production Year that is returned.  Don't want to do it unless the difference
-    # is greater than one year however, to allow for production at the end of the year with first of
-    # year release
-    if preference['useproductiondate']:
-        if data.has_key('Production Year'):
-          productionyear = int(data['Production Year'])
-          if productionyear > 1900:
-              if DEBUG: Log('Release Date Year for Title: %i' % metadata.year)
-              if DEBUG: Log('Production Year for Title: %i' % productionyear)
-              if (metadata.year > 1900) and ((metadata.year - productionyear) >1):
-                  metadata.year = productionyear
-                  metadata.originally_available_at = Datetime.ParseDate(str(productionyear) + "-01-01")
-                  if DEBUG: Log('Production Year earlier than release, setting date to: %s' % (str(productionyear) + "-01-01"))
-
-    # Cast - added updated by Briadin / 20190320
-    try:
-      metadata.roles.clear()
-      if html.xpath('//div[@class="hover-popover-detail"]'):
-        htmlcast = html.xpath('//div[@class="hover-popover-detail"]/img')
-
-        upperlist = []
-        for htmlcastUpper in htmlcast:
-            uppername = htmlcastUpper.xpath('./@title')[0]
-            upperurl = htmlcastUpper.xpath('./@src')[0]
-            upperurl = upperurl.replace("h.jpg",".jpg")
-            if DEBUG: Log('Upper Star Data: %s     %s' % (uppername, upperurl))
-            upperlist.append(uppername)
-            role = metadata.roles.new()
-            role.name = uppername
-            role.photo = upperurl
-
-        # Bottom List: doesn't have photo links available, so only uses to add names to the ones from the upper
-        if html.xpath('//a[contains(@class,"PerformerName")][not(ancestor::small)]'):
-          htmlcastLower = html.xpath('//a[contains(@class,"PerformerName")][not(ancestor::small)]')
-          lowerlist = []
-          for removedupestar in htmlcastLower:
-            # I realize there has to be a cleaner way to do this, but essentially this takes them
-            # name and bio page url, strips the star id from the url, then hooks the name and id
-            # together in a pseudo dictionary to be split back out later
-            lowername = removedupestar.xpath('./text()')[0]
-            lowerurl = removedupestar.xpath('./@href')[0]
-            lowerurlre = re.search('\d{3,8}',lowerurl)
-            lowerentry = lowername.strip() + '|' + lowerurlre.group(0).strip()
-            lowerlist.append(lowerentry)
-          lowerlist = list(set(lowerlist))
-          for lowerstar in lowerlist:
-            if (len(lowerstar) > 0):
-              lowerstarname, lowerstarurl = lowerstar.split("|")
-              # There are different descriptors that will show up as a name, for now just adding them ad-hoc
-              # to following statement with "and lowerstar.lower() != 'bio'"
-              if (lowerstarname not in upperlist and lowerstarname.lower() != 'bio' and lowerstarname.lower() != 'interview'):
-                role = metadata.roles.new()
-                role.name = lowerstarname
-                if len(lowerstarurl) > 1:
-                  photourl = "https://imgs1cdn.adultempire.com/actors/" + lowerstarurl + ".jpg"
-                  if self.file_exists(photourl):
-                    role.photo = photourl
-                  else:
-                    photourl = "Image Not Available"
-                else:
-                  photourl = "Image Not Available"
-                if DEBUG: Log('Added Lower List Star: %s    URL: %s' % (lowerstarname, photourl))
-
-    except Exception, e:
-      Log('Got an exception while parsing cast %s' %str(e))
-
-    # Director
-    try:
-      metadata.directors.clear()
-      if html.xpath('//a[contains(@label, "Director - details")]'):
-        if DEBUG: Log('Director Label Found...')
-        #htmldirector = HTML.StringFromElement(html.xpath('//a[contains(@label, "Director - details")]/text()'))
-        #htmldirector = HTML.ElementFromString(htmldirector).text_content().strip()
-        htmldirector = html.xpath('//a[contains(@label, "Director - details")]/text()')
-        #htmldirector = htmldirector.replace('\t', '')
-        if DEBUG: Log('Director is: %s', htmldirector[0])
-        if (len(htmldirector) > 0):
-          directorstring = htmldirector
-          director = metadata.directors.new()
-          director.name = htmldirector[0]
-    except Exception, e:
-      Log('Got an exception while parsing director %s' %str(e))
-
-    # Collections and Series
-    try:
-      metadata.collections.clear()
-      if html.xpath('//a[contains(@label, "Series")]'):
-        series = HTML.StringFromElement(html.xpath('//a[contains(@label, "Series")]')[0])
-        series = HTML.ElementFromString(series).text_content().strip()
-        series = series.split('"')
-        series = series[1]
-        metadata.collections.add(series)
-    except: pass
-    if studioascollection: metadata.collections.add(studio)
-
-    # Genres
-
-    try:
-      genrelist = []
-      metadata.genres.clear()
-      ignoregenres = [x.lower().strip() for x in preference['ignoregenres'].split('|')]
-      if html.xpath('//ul[@class="list-unstyled m-b-2"]//a[@label="Category"]'):
-        genres = html.xpath('//ul[@class="list-unstyled m-b-2"]//a[@label="Category"]/text()')
-        for genre in genres:
-            genre = genre.strip()
-            genrelist.append(genre)
-            if not genre.lower().strip() in ignoregenres: metadata.genres.add(genre)
-        if DEBUG: Log('Found Genres: %s' % (' | '.join(genrelist)))
-
-    except Exception, e:
-      Log('Got an exception while parsing genres %s' %str(e))
-
-    # 2019-01-17:
-    # The following code for Ratings, Background Art and Gallery images were copied From
-    # macr0dev's repository at https://github.com/macr0dev/AdultDVDEmpire.bundle then
-    # modified to work with user preferences and updated for the current website.
-    # However it is still Macr0dev's code in use
-    #
-    # Adapted fom Macr0dev's code
-    # Check for Average Rating
-    if html.xpath('//span[@class="rating-stars-avg"]/text()'):
-      averagerating = html.xpath('//span[@class="rating-stars-avg"]/text()')
-      averagerating = averagerating[0].strip()
-      averagerating = re.findall( r'\d+\.*\d*',averagerating)
-      if DEBUG: Log('Found an Average Rating of: %s' % str(averagerating[0]))
-      try:
-        metadata.rating = float(averagerating[0]) * 2
-      except: pass
-    else:
-      if DEBUG: Log('No Media Rating was Located')
-      metadata.rating = float(0)
-
-    # Adapted fom Macr0dev's code
-    # Background Art From Page
-    if preference['pullscreens']:
-        pullscreenscount = int(preference['pullscreenscount'])
-        if not (pullscreenscount > 0 and pullscreenscount < 50):
-            pullscreenscount = 3
-        try:
-          imgs = html.xpath('//a[contains(@rel, "scenescreenshots")]')
-          if len(imgs):
-            screencount = 0
-            imagelist = self.Rand(1,len(imgs),pullscreenscount)
-            if DEBUG: Log('Pulling Screenshot Images: %s' % ', '.join(str(e) for e in imagelist))
-            for img in imgs:
-              screencount += 1
-              if screencount in imagelist:
-                thumbUrl = img.attrib['href']
-                if DEBUG: Log('Writing Screen Image # %s: %s' % (str(screencount), str(thumbUrl)))
-                thumb = HTTP.Request(thumbUrl)
-                metadata.art[thumbUrl] = Proxy.Media(thumb)
-          else:
-            if DEBUG: Log('No Screenshot Images were found for media')
-        except Exception, e:
-          Log('Got an exception while parsing screenshot images %s' %str(e))
-
-    # Adapted fom Macr0dev's code
-    # Background Art From Gallery if it exists
-    if preference['pullgallery']:
-        pullgallerycount = int(preference['pullgallerycount'])
-        if not (pullgallerycount > 0 and pullgallerycount < 50):
-            pullgallerycount = 3
-        try:
-          galleryurl = None
-          gallery = html.xpath('//div[@class="user-action"]/a[contains(@class, "gallery")]')
-          for url in gallery:
-            galleryurl = ADE_BASEURL + url.attrib['href']
-            if DEBUG: Log('Gallery URL for Media: %s' % galleryurl)
-
-          if galleryurl is not None:
-            gallery = HTML.ElementFromURL(galleryurl)
-            imagelist = gallery.xpath('//div/a[contains(@class, "thumb fancy")]')
-            if len(imagelist):
-              gallerycount = 0
-              screenlist = self.Rand(1,len(imagelist),pullgallerycount)
-              if DEBUG: Log('Pulling Gallery Images: %s' % ', '.join(str(e) for e in screenlist))
-              for imgs in imagelist:
-                gallerycount += 1
-                if gallerycount in screenlist:
-                  imageurl = imgs.attrib['href']
-                  if DEBUG: Log('Writing Gallery Image # %s: %s' % (str(gallerycount),str(imageurl)))
-                  image = HTTP.Request(imageurl)
-                  metadata.art[imageurl] = Proxy.Media(image)
+            # Extract title text
+            movie_title = None
+            text_content = title_element.text_content().strip() if title_element else ''
+            if text_content:
+                movie_title = text_content
             else:
-              if DEBUG: Log('No Gallery Images were found for media')
-          else:
-            if DEBUG: Log('No Gallery was found for media')
-        except Exception, e:
-            Log('Got an exception while parsing gallery images %s' %str(e))
+                try:
+                    child_texts = title_element.xpath('./text()')
+                    if child_texts:
+                        movie_title = ''.join(child_texts).strip()
+                except Exception:
+                    pass
+                
+                if not movie_title:
+                    title_attr = title_element.get('title', '').strip() if title_element else ''
+                    if title_attr:
+                        movie_title = title_attr
+            
+            if not movie_title:
+                if debug: Log('No title found for URL: %s' % movie_url)
+                return None
+            
+            # Clean title and handle 'The' suffix
+            movie_title = self.clean_title(movie_title)
+            if ', The' in movie_title:
+                movie_title = 'The ' + movie_title.replace(', The', '', 1)
+            
+            # Extract movie ID
+            movie_id_match = re.search(MOVIE_ID_REGEX, movie_url)
+            if not movie_id_match:
+                if debug: Log('No movie ID in URL: %s' % movie_url)
+                return None
+            movie_id = movie_id_match.group(1)
+            
+            # Normalize titles for scoring
+            norm_search = self.normalize_for_scoring(search_title)
+            norm_movie = self.normalize_for_scoring(movie_title)
+            score = INITIAL_SCORE - Util.LevenshteinDistance(norm_search, norm_movie)
+            
+            # Extract release date
+            release_date = None
+            for xpath in RELEASE_DATE_XPATHS:
+                try:
+                    release_text = movie_element.xpath(xpath)
+                    if release_text:
+                        release_text = release_text[0].strip()
+                        if release_text:
+                            try:
+                                release_date = datetime.datetime.strptime(release_text, "%m/%d/%Y").strftime("%Y-%m-%d")
+                                break
+                            except ValueError:
+                                pass
+                except Exception:
+                    pass
 
-  def Rand(self, start, end, num):
-    res = []
-    for j in range(num):
-      res.append(random.randint(start, end))
-    return res
+            # Extract production year
+            production_year = None
+            for xpath in PRODUCTION_YEAR_XPATHS:
+                try:
+                    year_text = movie_element.xpath(xpath)
+                    if year_text:
+                        year_text = year_text[0].strip()
+                        if re.match(PRODUCTION_YEAR_REGEX, year_text):
+                            production_year = year_text.strip('()')
+                            break
+                except Exception:
+                    pass
 
-  #Just a function to check to see if a url (image here) exists
-  def file_exists(self, url):
-    request = urllib2.Request(url)
-    request.get_method = lambda : 'HEAD'
-    try:
-        response = urllib2.urlopen(request)
-        #Log('Response for File Exist check: %s' % str(response.getcode()))
-        #Log('URL Actually retrieved: %s' % str(response.geturl()))
-        #Log('Headers retrieved from pull: %s' % str(response.info()))
-        return True
-    except:
-        return False
+            # Determine media format
+            media_type = 'NA'
+            for xpath in MEDIA_FORMAT_DVD_XPATHS:
+                try:
+                    if movie_element.xpath(xpath):
+                        media_type = 'dvd'
+                        break
+                except Exception:
+                    pass
+            if media_type == 'NA':
+                for xpath in MEDIA_FORMAT_VOD_XPATHS:
+                    try:
+                        if movie_element.xpath(xpath):
+                            media_type = 'vod'
+                            break
+                    except Exception:
+                        pass
+
+            # Construct display name
+            display_name = movie_title
+            if dateformat:
+                year_to_show = production_year
+                if not year_to_show and release_date:
+                    year_to_show = release_date[:4]
+                if year_to_show:
+                    display_name += ' (%s)' % year_to_show
+            else:
+                if release_date:
+                    display_name += ' [%s]' % release_date
+
+            return {
+                'id': movie_id,
+                'name': movie_title,
+                'display_name': display_name,
+                'format': media_type,
+                'score': score,
+                'release_date': release_date,
+                'production_year': production_year
+            }
+        except Exception as e:
+            if debug: Log('Error parsing movie result: %s' % e)
+            return None
+
+    def search(self, results, media, lang):
+        debug = Prefs['debug']
+        goodscore = int(Prefs['goodscore'])
+        if goodscore < 1:
+            goodscore = 96
+        title = media.name or (media.primary_metadata.title if media.primary_metadata else '')
+        query = String.URLEncode(String.StripDiacritics(title.replace('-', '')))
+        search_url = SEARCH_URL_TEMPLATE % query
+        
+        try:
+            response = HTTP.Request(search_url, timeout=HTTP_TIMEOUT)
+            html = HTML.ElementFromString(response)
+            movie_results = []
+            for xpath in SEARCH_RESULTS_XPATHS:
+                try:
+                    movies = html.xpath(xpath)
+                    if movies:
+                        for movie_element in movies:
+                            result = self.parse_movie_result(movie_element, title)
+                            if result:
+                                movie_results.append(result)
+                        break
+                except Exception:
+                    pass
+            
+            # Filter to keep the best format for each unique title
+            unique_results = []
+            seen_titles = set()
+            for result in sorted(movie_results, key=lambda x: (x['name'], MEDIA_FORMAT_PRIORITIES[x['format']])):
+                if result['name'] not in seen_titles:
+                    unique_results.append(result)
+                    seen_titles.add(result['name'])
+            
+            # Add filtered results to Plex
+            for result in unique_results:
+                if result['display_name'].lower().count(title.lower()) or result['score'] >= goodscore:
+                    results.Append(MetadataSearchResult(
+                        id=result['id'],
+                        name=result['display_name'],
+                        score=result['score'],
+                        lang=lang
+                    ))
+            
+            results.Sort('score', descending=True)
+            if debug: Log('Search completed: %d results' % len(unique_results))
+        except Exception as e:
+            if debug: Log('Search failed: %s' % e)
+
+    def extract_product_info(self, html):
+        debug = Prefs['debug']
+        product_info = {}
+        for xpath in PRODUCT_INFO_XPATHS:
+            try:
+                info_element = html.xpath(xpath)[0]
+                product_info = {}
+                for item in info_element.xpath('./li'):
+                    label_elements = item.xpath('./small')
+                    if label_elements:
+                        label_text = label_elements[0].text_content().strip()
+                        key = label_text.rstrip(':').strip()
+                        value = item.text_content().replace(label_text, '', 1).strip().encode('utf-8', 'ignore').decode('utf-8')
+                        product_info[key] = value
+                if product_info:
+                    return product_info
+            except Exception as e:
+                if debug: Log('Product info extraction failed: %s' % e)
+        if debug: Log('No product info extracted')
+        return product_info
+
+    def extract_cast(self, html):
+        debug = Prefs['debug']
+        actors = []
+        photo_base_url = None
+        featured_actors = set()
+        # Extract directors to filter them from cast
+        director_names = set()
+        try:
+            director_elements = html.xpath(DIRECTOR_XPATH)
+            director_names = set(d.strip().lower() for d in director_elements if d.strip())
+        except Exception:
+            if debug: Log('Failed to extract directors for filtering')
+
+        try:
+            for actor_elem in html.xpath(CAST_UPPER_XPATH):
+                try:
+                    actor_name = actor_elem.xpath('./@title')[0].strip()
+                    # Skip if name is a director
+                    if actor_name.lower() in director_names:
+                        continue
+                    thumb_src = actor_elem.xpath('./@src')[0]
+                    if not photo_base_url:
+                        photo_base_url = thumb_src.rsplit('/', 1)[0] + '/'
+                    actor_photo = thumb_src.replace('h.jpg', '.jpg')
+                    if actor_name.lower() not in EXCLUDED_CAST_TERMS:
+                        featured_actors.add(actor_name)
+                        actors.append({'name': actor_name, 'photo': actor_photo})
+                except Exception:
+                    pass
+            
+            for actor_elem in html.xpath(CAST_LOWER_XPATH):
+                try:
+                    parent_li = actor_elem.getparent()
+                    label_texts = parent_li.xpath('./small/text()')
+                    if label_texts and 'Director' in label_texts[0].strip():
+                        continue
+                    actor_name = actor_elem.xpath('./text()')[0].strip()
+                    # Skip if name is a director
+                    if actor_name.lower() in director_names:
+                        continue
+                    profile_url = actor_elem.xpath('./@href')[0]
+                    actor_id_match = re.search(ACTOR_ID_REGEX, profile_url)
+                    if actor_id_match and actor_name not in featured_actors and actor_name.lower() not in EXCLUDED_CAST_TERMS:
+                        actor_id = actor_id_match.group(0)
+                        actor_photo = None
+                        if photo_base_url:
+                            actor_photo = photo_base_url + actor_id + '.jpg'
+                        actors.append({
+                            'name': actor_name,
+                            'photo': actor_photo if (actor_photo and self.file_exists(actor_photo)) else None
+                        })
+                except Exception:
+                    pass
+        except Exception as e:
+            if debug: Log('Cast extraction failed: %s' % e)
+        return actors
+
+    def update(self, metadata, media, lang):
+        debug = Prefs['debug']
+        studioascollection = Prefs['studioascollection']
+        useproductiondate = Prefs['useproductiondate']
+        pullscreens = Prefs['pullscreens']
+        pullscreenscount = int(Prefs['pullscreenscount'])
+        if not (0 < pullscreenscount < MAX_IMAGE_COUNT):
+            pullscreenscount = 3
+        pullgallery = Prefs['pullgallery']
+        pullgallerycount = int(Prefs['pullgallerycount'])
+        if not (0 < pullgallerycount < MAX_IMAGE_COUNT):
+            pullgallerycount = 3
+        ignoregenres = [x.lower().strip() for x in (Prefs['ignoregenres'] or '').split('|')]
+        try:
+            page_content = HTTP.Request(MOVIE_INFO_URL % metadata.id, timeout=HTTP_TIMEOUT)
+            page_html = HTML.ElementFromString(page_content)
+            
+            # Title
+            metadata.title = self.clean_title(media.title)
+            
+            # Poster
+            try:
+                poster_img = page_html.xpath(POSTER_XPATH)[0]
+                poster_url = poster_img.get('src')
+                poster_data = HTTP.Request(poster_url)
+                metadata.posters[poster_url] = Proxy.Preview(poster_data)
+            except Exception:
+                if debug: Log('Poster update failed')
+            
+            # Tagline
+            try:
+                tagline_text = page_html.xpath(TAGLINE_XPATH)[0].strip()
+                metadata.tagline = tagline_text
+            except Exception:
+                if debug: Log('Tagline update failed')
+            
+            # Summary
+            try:
+                summary_text = page_html.xpath(SUMMARY_XPATH)[0].text_content().strip()
+                metadata.summary = summary_text
+            except Exception:
+                if debug: Log('Summary update failed')
+            
+            # Product Info
+            details = self.extract_product_info(page_html)
+            
+            # Content Rating
+            if 'Rating' in details:
+                metadata.content_rating = details['Rating']
+            
+            # Studio
+            if 'Studio' in details:
+                metadata.studio = details['Studio']
+                if studioascollection:
+                    metadata.collections.add(details['Studio'])
+            
+            # Release Date
+            if 'Released' in details:
+                try:
+                    metadata.originally_available_at = Datetime.ParseDate(details['Released']).date()
+                    metadata.year = metadata.originally_available_at.year
+                except Exception:
+                    if debug: Log('Release date update failed')
+            
+            # Production Year
+            if useproductiondate and 'Production Year' in details:
+                try:
+                    prod_year = int(details['Production Year'])
+                    if prod_year > 1900 and metadata.year and (metadata.year - prod_year) > 1:
+                        metadata.year = prod_year
+                        metadata.originally_available_at = Datetime.ParseDate('%s-01-01' % prod_year).date()
+                except Exception:
+                    if debug: Log('Production year update failed')
+            
+            # Cast
+            metadata.roles.clear()
+            actors = self.extract_cast(page_html)
+            for actor in actors:
+                actor_role = metadata.roles.new()
+                actor_role.name = actor['name']
+                if actor['photo']:
+                    actor_role.photo = actor['photo']
+           
+            # Directors
+            try:
+                director_list = page_html.xpath(DIRECTOR_XPATH)
+                if director_list:
+                    metadata.directors.clear()
+                    unique_dirs = set(d.strip() for d in director_list if d.strip())
+                    for name in unique_dirs:
+                        director = metadata.directors.new()
+                        director.name = name
+            except Exception:
+                if debug: Log('Director update failed')
+            
+            # Collections and Series
+            try:
+                metadata.collections.clear()
+                series_links = page_html.xpath(SERIES_XPATH)
+                if series_links:
+                    series_title = series_links[0].strip().split('"')[1]
+                    metadata.collections.add(series_title)
+            except Exception as e:
+                if debug: Log('Series update failed: %s' % e)
+            
+            # Genres
+            try:
+                metadata.genres.clear()
+                for genre_name in page_html.xpath(GENRES_XPATH):
+                    genre_name = genre_name.strip()
+                    if genre_name.lower() not in ignoregenres:
+                        metadata.genres.add(genre_name)
+            except Exception:
+                if debug: Log('Genres update failed')
+            
+            # Average Rating
+            try:
+                rating_elems = page_html.xpath(RATING_XPATH)
+                if rating_elems:
+                    rating_text = rating_elems[0].strip()
+                    if debug: Log('Found rating text: %s' % rating_text)
+                    rating_numbers = re.findall(r'\d+\.*\d*', rating_text)
+                    if rating_numbers:
+                        metadata.rating = float(rating_numbers[0]) * 2.0
+                        if debug:
+                            Log('Set rating to %f' % metadata.rating)
+                    else:
+                        metadata.rating = 0.0
+                        if debug:
+                            Log('No numeric match in rating text')
+                else:
+                    if debug: Log('No rating element found with XPath')
+                    metadata.rating = 0.0
+            except Exception as e:
+                if debug: Log('Rating update failed: %s' % e)
+                metadata.rating = 0.0
+            
+            # Screenshots
+            if pullscreens:
+                try:
+                    screenshot_links = page_html.xpath(SCREENSHOTS_XPATH)
+                    if screenshot_links:
+                        selected_indices = random.sample(range(1, len(screenshot_links) + 1), min(pullscreenscount, len(screenshot_links)))
+                        for idx, link in enumerate(screenshot_links, 1):
+                            if idx in selected_indices:
+                                screenshot_url = link.attrib['href']
+                                screenshot_data = HTTP.Request(screenshot_url)
+                                metadata.art[screenshot_url] = Proxy.Media(screenshot_data)
+                except Exception:
+                    if debug: Log('Screenshots update failed')
+            
+            # Gallery Images
+            if pullgallery:
+                try:
+                    gallery_links = page_html.xpath(GALLERY_XPATH)
+                    if gallery_links:
+                        gallery_page_url = BASE_URL + gallery_links[0].attrib['href']
+                        gallery_content = HTTP.Request(gallery_page_url, timeout=HTTP_TIMEOUT)
+                        gallery_html = HTML.ElementFromString(gallery_content)
+                        gallery_images = gallery_html.xpath(GALLERY_IMAGES_XPATH)
+                        if gallery_images:
+                            selected_indices = random.sample(range(1, len(gallery_images) + 1), min(pullgallerycount, len(gallery_images)))
+                            for idx, img in enumerate(gallery_images, 1):
+                                if idx in selected_indices:
+                                    gallery_image_url = img.attrib['href']
+                                    image_data = HTTP.Request(gallery_image_url)
+                                    metadata.art[gallery_image_url] = Proxy.Media(image_data)
+                except Exception:
+                    if debug: Log('Gallery images update failed')
+            
+            # Log metadata for debugging
+            if debug:
+                debug_metadata = {
+                    'title': metadata.title,
+                    'content_rating': metadata.content_rating,
+                    'studio': metadata.studio,
+                    'originally_available_at': str(metadata.originally_available_at) if metadata.originally_available_at else None,
+                    'year': metadata.year,
+                    'tagline': metadata.tagline,
+                    'summary': metadata.summary,
+                    'rating': metadata.rating,
+                    'genres': list(metadata.genres),
+                    'roles': [role.name for role in metadata.roles],
+                    'directors': [director.name for director in metadata.directors],
+                    'collections': list(metadata.collections),
+                    'posters': list(metadata.posters.keys()),
+                    'art': list(metadata.art.keys())
+                }
+                Log('Metadata contents: %s' % str(debug_metadata))
+                Log('Metadata updated for ID: %s' % metadata.id)
+        except Exception as e:
+            if debug: Log('Metadata update failed: %s' % e)
