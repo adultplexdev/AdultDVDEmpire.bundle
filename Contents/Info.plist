@@ -25,13 +25,12 @@
 	<key>PlexAgentAttributionText</key>
 	<string>
 <![CDATA[
-Adult DVD Empire Agent (v2024-09-19)
+AdultDVDEmpire Plex Metadata Agent
 <br /><br />
-is an agent to scrape related metadata from the great site, Adult DVD Empire.  If adult content
-is your thing, we'd highly recommend you giving them a look!
-This agent is completely unafilliated with the website in any way, as an fyi.  If you have problems
- they definitely won't help you with it.
+A Plex metadata agent to scrape movie data from Adult DVD Empire. Supports searching and updating metadata with preferences for search type and media format prioritization. See README.md for details.
+<br /><br />
+This agent is completely unafilliated with the website in any way.
 ]]>
-	</string>    
+</string>    
 </dict>
 </plist>
