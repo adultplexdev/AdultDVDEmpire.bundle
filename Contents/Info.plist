@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>English</string>
+	<key>CFBundleExecutable</key>
+	<string>AdultDVDEmpire</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.plexapp.agents.adultdvdempire</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.1</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleVersion</key>
+	<string>1.1.0</string>
+	<key>PlexFrameworkVersion</key>
+	<string>2</string>
+	<key>PlexPluginClass</key>
+	<string>Agent</string>
+	<key>PlexPluginMode</key>
+	<string>AlwaysOn</string>
+	<key>PlexAgentAttributionText</key>
+	<string>
+<![CDATA[
+<strong>AdultDVDEmpire Plex Metadata Agent</strong>
+<br /><br />
+A Plex metadata agent that scrapes movie data from Adult DVD Empire. Supports search scoring, DVD/Blu-ray/VOD prioritization, cast photos, series collections, screenshots, and galleries.
+<br /><br />
+<strong>Updates &amp; source</strong><br />
+Get the latest version, report issues, and follow changes on GitHub:<br />
+<a href="https://github.com/adultplexdev/AdultDVDEmpire.bundle">https://github.com/adultplexdev/AdultDVDEmpire.bundle</a>
+<br /><br />
+<strong>Install tip</strong><br />
+Place the bundle as <code>AdultDVDEmpire.bundle</code> under your Plex Media Server <code>Plug-ins</code> folder, then restart Plex Media Server. Set this agent as the primary agent for the movie library (with Local Media Assets ordered as you prefer for local posters/art).
+<br /><br />
+<strong>Matching tips</strong><br />
+• Prefer clean filenames: <em>Title (Year).ext</em> works best.<br />
+• If search is weak, try Fix Match and lower the minimum match score, or enable debug logging and check the agent plugin log.<br />
+• DVD, Blu-ray, and VOD editions of the same title can appear separately - use Preferred media format to pick a default.
+<br /><br />
+<strong>Privacy</strong><br />
+Plex may collect library and viewing data. Consider that before installing any third-party agent. This agent contacts Adult DVD Empire over the network to fetch metadata and artwork.
+<br /><br />
+<strong>Disclaimer</strong><br />
+This agent is completely unaffiliated with Adult DVD Empire / AdultEmpire and is not endorsed by them. Site layout changes can break scraping until the agent is updated - check GitHub for fixes.
+]]>
+</string>
+</dict>
+</plist>

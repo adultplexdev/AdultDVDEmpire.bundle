@@ -1,0 +1,129 @@
+[
+  {
+    "id": "goodscore",
+    "label": "Minimum match score: ",
+    "type": "enum",
+    "values": [
+      "90",
+      "92",
+      "94",
+      "96",
+      "98",
+      "100"
+    ],
+    "default": "96"
+  },
+  {
+    "id": "dateformat",
+    "label": "Search result date format: ",
+    "type": "enum",
+    "values": [
+      "Year (YYYY)",
+      "Full date (YYYY-MM-DD)",
+      "None"
+    ],
+    "default": "Year (YYYY)"
+  },
+  {
+    "id": "preferredformat",
+    "label": "Preferred media format: ",
+    "type": "enum",
+    "values": [
+      "DVD",
+      "Blu-ray",
+      "VOD",
+      "No preference"
+    ],
+    "default": "DVD"
+  },
+  {
+    "id": "showformat",
+    "label": "Show media format in search results",
+    "type": "bool",
+    "default": "true"
+  },
+  {
+    "id": "titlesource",
+    "label": "Title source: ",
+    "type": "enum",
+    "values": [
+      "Adult DVD Empire page",
+      "Keep filename / existing title"
+    ],
+    "default": "Adult DVD Empire page"
+  },
+  {
+    "id": "useproductiondate",
+    "label": "Prefer production year when release year is much later",
+    "type": "bool",
+    "default": "true"
+  },
+  {
+    "id": "seriesascollection",
+    "label": "Use series name as collection",
+    "type": "bool",
+    "default": "true"
+  },
+  {
+    "id": "studioascollection",
+    "label": "Use studio name as collection",
+    "type": "bool",
+    "default": "false"
+  },
+  {
+    "id": "ignoregenres",
+    "label": "Genres to ignore (separated by |)",
+    "type": "text",
+    "default": ""
+  },
+  {
+    "id": "pullscreens",
+    "label": "Download scene screenshots as background art",
+    "type": "bool",
+    "default": "false"
+  },
+  {
+    "id": "pullscreenscount",
+    "label": "Maximum screenshots: ",
+    "type": "enum",
+    "values": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "8",
+      "10"
+    ],
+    "default": "3"
+  },
+  {
+    "id": "pullgallery",
+    "label": "Download gallery images as background art",
+    "type": "bool",
+    "default": "false"
+  },
+  {
+    "id": "pullgallerycount",
+    "label": "Maximum gallery images: ",
+    "type": "enum",
+    "values": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "8",
+      "10"
+    ],
+    "default": "3"
+  },
+  {
+    "id": "debug",
+    "label": "Enable debug logging",
+    "type": "bool",
+    "default": "false"
+  }
+]
