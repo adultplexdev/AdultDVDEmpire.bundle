@@ -37,6 +37,13 @@ This project is **not affiliated** with Adult DVD Empire / AdultEmpire and is no
 
 ---
 
+## 2026-07-29 - v1.1.2 Plex sandbox crash fix
+
+### Bug fix
+- **Metadata update aborted with no title/poster/art** - Plex Framework does not define `getattr` / `hasattr`. Update hit `global name 'getattr' is not defined` and exited before writing any fields. Replaced with direct attribute access and try/except (same pattern as the original agent).
+
+---
+
 ## 2026-07-25 - Reliability & code quality rewrite
 
 ### Bug fixes

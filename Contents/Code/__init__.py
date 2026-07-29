@@ -1,8 +1,9 @@
 # AdultDVDEmpire Plex Metadata Agent
-# Update: 25 July 2026
+# Update: 29 July 2026 (v1.1.2)
 # Description: Plex metadata agent for Adult DVD Empire (movies).
 #              Search + metadata update with format prioritization,
 #              safer prefs parsing, and more reliable page parsing.
+#              Avoid getattr/hasattr (not defined in Plex Framework sandbox).
 
 import re
 import datetime
@@ -324,13 +325,15 @@ class ADEAgent(Agent.Movies):
         if node is None:
             return None
         try:
-            # Attribute results from xpath are already strings
+            # Attribute results from xpath are already strings.
+            # Plex sandbox has no hasattr/getattr - probe with try/except.
             if isinstance(node, STRING_TYPES):
                 text = node
-            elif hasattr(node, 'text_content'):
-                text = node.text_content()
             else:
-                text = str(node)
+                try:
+                    text = node.text_content()
+                except Exception:
+                    text = str(node)
             text = text.strip()
             text = re.sub(r'\s+', ' ', text).strip()
             return text or None
@@ -582,16 +585,18 @@ class ADEAgent(Agent.Movies):
     def search(self, results, media, lang):
         goodscore = self.pref_int('goodscore', DEFAULT_GOOD_SCORE, minimum=1, maximum=100)
 
+        # Plex sandbox: no getattr/hasattr - access attributes directly.
         title = media.name or ''
-        if (not title) and getattr(media, 'primary_metadata', None):
+        if not title:
             try:
-                title = media.primary_metadata.title or ''
+                if media.primary_metadata:
+                    title = media.primary_metadata.title or ''
             except Exception:
                 title = ''
 
         media_year = None
         try:
-            if getattr(media, 'year', None):
+            if media.year:
                 media_year = int(media.year)
         except Exception:
             media_year = self.extract_year_from_text(title)
@@ -870,8 +875,18 @@ class ADEAgent(Agent.Movies):
             page_url = MOVIE_INFO_URL % metadata.id
             page_html = self.fetch_html(page_url)
 
-            # Title: ADE page (default) or keep filename / existing title
-            media_title = getattr(media, 'title', None) or getattr(media, 'name', None) or ''
+            # Title: ADE page (default) or keep filename / existing title.
+            # Plex sandbox has no getattr - read media attrs with try/except.
+            media_title = ''
+            try:
+                media_title = media.title or ''
+            except Exception:
+                media_title = ''
+            if not media_title:
+                try:
+                    media_title = media.name or ''
+                except Exception:
+                    media_title = ''
             if TITLESOURCE_FILE.lower() in title_source.lower() or 'filename' in title_source.lower():
                 metadata.title = self.clean_title(media_title) or self.page_title(page_html, media_title)
             else:
@@ -914,9 +929,10 @@ class ADEAgent(Agent.Movies):
                 try:
                     parsed = self.parse_date_string(details['Released'])
                     if parsed is not None:
-                        if hasattr(parsed, 'date'):
+                        # datetime has .date(); date objects do not (Plex: no hasattr)
+                        try:
                             metadata.originally_available_at = parsed.date()
-                        else:
+                        except Exception:
                             metadata.originally_available_at = parsed
                         metadata.year = metadata.originally_available_at.year
                 except Exception as e:
@@ -1024,13 +1040,18 @@ class ADEAgent(Agent.Movies):
                     self.log('Gallery images update failed: %s' % e)
 
             if self.debug_enabled():
+                duration_val = None
+                try:
+                    duration_val = metadata.duration
+                except Exception:
+                    duration_val = None
                 debug_metadata = {
                     'title': metadata.title,
                     'content_rating': metadata.content_rating,
                     'studio': metadata.studio,
                     'originally_available_at': str(metadata.originally_available_at) if metadata.originally_available_at else None,
                     'year': metadata.year,
-                    'duration': getattr(metadata, 'duration', None),
+                    'duration': duration_val,
                     'tagline': metadata.tagline,
                     'summary': (metadata.summary[:120] + '...') if metadata.summary and len(metadata.summary) > 120 else metadata.summary,
                     'rating': metadata.rating,
